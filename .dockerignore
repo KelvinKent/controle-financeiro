@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+.streamlit/secrets.toml
+data/backups/
+.git/
+.gitignore
+*.md
+iniciar.bat
+run.py

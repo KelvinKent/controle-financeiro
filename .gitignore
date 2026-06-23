@@ -1,0 +1,18 @@
+# Ambiente virtual
+venv/
+__pycache__/
+*.pyc
+
+# Segredos — NUNCA versionar
+.streamlit/secrets.toml
+
+# Banco de dados local e backups (dados pessoais)
+data/financeiro.xlsx
+data/backups/
+
+# Logs
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db

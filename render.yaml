@@ -1,0 +1,19 @@
+# Render Blueprint — deploy automático a partir do repositório.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: controle-financeiro
+    runtime: docker
+    plan: starter            # plano pago mais barato; necessário para disco persistente
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DATA_DIR
+        value: /data
+      - key: APP_PASSWORD
+        sync: false          # defina o valor no painel do Render (secreto)
+      - key: ANTHROPIC_API_KEY
+        sync: false          # opcional — para a aba Importar
+    disk:
+      name: dados-financeiro
+      mountPath: /data       # volume persistente para o Excel + backups
+      sizeGB: 1
