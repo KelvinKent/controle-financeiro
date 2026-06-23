@@ -719,7 +719,12 @@ elif pagina == "Lançamentos":
             chip = (f'<span style="background:{tc[0]};color:{tc[1]};padding:1px 7px;'
                     f'border-radius:3px;font-size:11px;white-space:nowrap">{tc[2]}</span>')
             parc_rest = row.get("total_parcelas")
-            faltam = str(int(parc_rest)) if parc_rest is not None and not pd.isna(parc_rest) else "—"
+            if tipo_raw == "ULTIMA":
+                faltam = "ÚLTIMA"
+            elif tipo_raw == "parcelado" and parc_rest is not None and not pd.isna(parc_rest):
+                faltam = str(int(parc_rest))
+            else:
+                faltam = "—"
             valor = float(row["valor"])
             cat = str(row.get("categoria", ""))
             cor_val = "#4ade80" if valor < 0 else "inherit"
