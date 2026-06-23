@@ -14,7 +14,7 @@ from modules.db import (
     get_fixos, load_sheet, save_sheet, aplicar_fixos_ao_mes,
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
-    fazer_backup, listar_backups,
+    fazer_backup, listar_backups, update_fixo, delete_fixo,
 )
 
 MES_LABELS = {
@@ -583,6 +583,10 @@ elif pagina == "Lançamentos":
             labels_m = [MES_LABELS.get(m, m) for m in meses_disp]
             escolha_m = pp2.selectbox("Mês da 1ª parcela", labels_m, index=idx_mes, key=f"{prefixo}_mesinicio")
             mes_inicio_parc = meses_disp[labels_m.index(escolha_m)]
+            if total_parc:
+                vparc = valor / int(total_parc)
+                st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
+                           f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
 
         return {
             "cartao": cartao, "subtipo": subtipo, "valor": valor, "descricao": descricao,
@@ -598,15 +602,20 @@ elif pagina == "Lançamentos":
             st.error("Preencha a descrição.")
             return False
         if campos["tipo"] == "parcelado" and campos["total_parc"]:
+            n_parc = int(campos["total_parc"])
+            # O valor informado é o TOTAL da compra → divide pelo nº de parcelas
+            valor_parc = round(campos["valor"] / n_parc, 2)
+            vt_parc = round(campos["val_pessoa"] / n_parc, 2) if campos["val_pessoa"] else None
             gid = criar_grupo_parcelamento(
                 descricao=campos["descricao"], cartao=campos["cartao"],
                 subtipo_cartao=campos["subtipo"], categoria=campos["categoria"],
-                valor_parcela=campos["valor"], total_parcelas=campos["total_parc"],
+                valor_parcela=valor_parc, total_parcelas=n_parc,
                 mes_inicio=campos["mes_inicio_parc"],
-                pessoa_thais=campos["pessoa"], valor_thais=campos["val_pessoa"],
+                pessoa_thais=campos["pessoa"], valor_thais=vt_parc,
             )
-            ultimo = _proximo_mes(campos["mes_inicio_parc"], campos["total_parc"] - 1)
-            st.success(f"'{campos['descricao']}' criado em {campos['total_parc']}x até {ultimo}!")
+            ultimo = _proximo_mes(campos["mes_inicio_parc"], n_parc - 1)
+            st.success(f"'{campos['descricao']}' criado em {n_parc}x de R$ {valor_parc:,.2f} "
+                       f"(total R$ {campos['valor']:,.2f}) até {ultimo}!")
         else:
             add_lancamento(
                 mes_ano=mes, cartao=campos["cartao"], dono="Kelvin",
@@ -666,74 +675,93 @@ elif pagina == "Lançamentos":
     if lanc.empty:
         st.info("Nenhum lançamento encontrado para os filtros selecionados.")
     else:
-        st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos · Total: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
+        # ── Totais por cartão (item 2) — usa o mês completo para conferência ──
+        lanc_mes_full = get_lancamentos(mes)
+        tot_cartao = {}
+        for _, r in lanc_mes_full.iterrows():
+            c = str(r["cartao"])
+            sub = r.get("subtipo_cartao")
+            sub_s = "Físico" if (c == "Santander" and str(sub) == "Físico") else None
+            chave = (c, sub_s)
+            tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
+        cards_html = ""
+        for (c, sub_s), tot in sorted(tot_cartao.items(), key=lambda x: -x[1]):
+            b = badge_cartao(c, sub_s)
+            cards_html += (f'<div style="display:inline-flex;align-items:center;gap:8px;'
+                           f'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);'
+                           f'border-radius:8px;padding:8px 12px;margin:0 8px 8px 0">'
+                           f'{b}<span style="font-size:15px;font-weight:700">R$ {tot:,.2f}</span></div>')
+        st.markdown("##### Totais por cartão no mês")
+        st.html(f'<div style="display:flex;flex-wrap:wrap">{cards_html}</div>')
 
-        # Monta HTML da tabela completa
+        st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
+
         tipo_chip = {
             "FIXO":      ("#1a3a2a", "#4ade80", "FIXO"),
             "ULTIMA":    ("#3a1a1a", "#f87171", "ÚLTIMA"),
             "única":     ("#1a2a3a", "#60a5fa", "única"),
             "parcelado": ("#2a2a1a", "#facc15", "parcelado"),
         }
-        rows_html = ""
-        for i, (_, row) in enumerate(lanc.iterrows()):
+
+        def _cell_lanc(row):
+            """Conteúdo flex de uma linha (descrição+badge, categoria, tipo, faltam, valor)."""
             subtipo_val = row.get("subtipo_cartao")
             subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
             badge = badge_cartao(row["cartao"], subtipo_str)
-
             pessoa_val = row.get("pessoa_thais")
             valor_p = row.get("valor_thais")
             nome_p = str(pessoa_val) if pessoa_val and not pd.isna(pessoa_val) else ""
             val_p_fmt = f" · R$ {float(valor_p):,.2f}" if valor_p and not pd.isna(valor_p) else ""
             pessoa_line = (f'<div style="font-size:10px;color:#666;margin-top:1px">👤 {nome_p}{val_p_fmt}</div>'
                            if nome_p else "")
-
             tipo_raw = str(row["tipo_parcela"])
             tc = tipo_chip.get(tipo_raw, ("#2a2a2a", "#aaa", tipo_raw))
             chip = (f'<span style="background:{tc[0]};color:{tc[1]};padding:1px 7px;'
                     f'border-radius:3px;font-size:11px;white-space:nowrap">{tc[2]}</span>')
-
             parc_rest = row.get("total_parcelas")
-            faltam = str(int(parc_rest)) if parc_rest and not pd.isna(parc_rest) else "—"
-
+            faltam = str(int(parc_rest)) if parc_rest is not None and not pd.isna(parc_rest) else "—"
             valor = float(row["valor"])
             cat = str(row.get("categoria", ""))
-            bg = "rgba(255,255,255,0.02)" if i % 2 == 0 else "transparent"
+            cor_val = "#4ade80" if valor < 0 else "inherit"
+            return (
+                f'<div style="display:flex;align-items:center;font-family:inherit;padding:2px 0">'
+                f'<div style="flex:3.2;min-width:0">'
+                f'<span style="font-weight:500;font-size:13px">{_fmt_desc(row["descricao"])}</span>&nbsp;{badge}{pessoa_line}</div>'
+                f'<div style="flex:1.3;font-size:12px;color:#aaa">{cat}</div>'
+                f'<div style="flex:1.1">{chip}</div>'
+                f'<div style="flex:0.8;text-align:center;color:#888;font-size:13px">{faltam}</div>'
+                f'<div style="flex:1.3;text-align:right;font-size:13px;font-weight:600;color:{cor_val}">R$ {valor:,.2f}</div>'
+                f'</div>'
+            )
 
-            rows_html += f"""
-            <tr style="background:{bg};border-bottom:1px solid rgba(255,255,255,0.06)">
-              <td style="padding:9px 14px;min-width:220px">
-                <span style="font-weight:500;font-size:13px">{_fmt_desc(row['descricao'])}</span>&nbsp;{badge}{pessoa_line}
-              </td>
-              <td style="padding:9px 14px;font-size:12px;color:#aaa;white-space:nowrap">{cat}</td>
-              <td style="padding:9px 14px">{chip}</td>
-              <td style="padding:9px 14px;text-align:center;color:#888;font-size:13px">{faltam}</td>
-              <td style="padding:9px 14px;text-align:right;font-size:13px;font-weight:600;white-space:nowrap;color:{'#4ade80' if valor < 0 else 'inherit'}">R$ {valor:,.2f}</td>
-              <td style="padding:9px 14px;text-align:center;color:#444;font-size:11px">{int(row['id'])}</td>
-            </tr>"""
+        # Cabeçalho
+        hc = st.columns([7, 0.6, 0.6])
+        hc[0].html(
+            '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
+            'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0">'
+            '<div style="flex:3.2">Descrição</div><div style="flex:1.3">Categoria</div>'
+            '<div style="flex:1.1">Tipo</div><div style="flex:0.8;text-align:center">Faltam</div>'
+            '<div style="flex:1.3;text-align:right">Valor</div></div>'
+        )
 
-        table_html = f"""
-        <table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:13px">
-          <thead>
-            <tr style="border-bottom:2px solid rgba(255,255,255,0.12)">
-              <th style="padding:10px 14px;text-align:left;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Descrição</th>
-              <th style="padding:10px 14px;text-align:left;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Categoria</th>
-              <th style="padding:10px 14px;text-align:left;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Tipo</th>
-              <th style="padding:10px 14px;text-align:center;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Faltam</th>
-              <th style="padding:10px 14px;text-align:right;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Valor</th>
-              <th style="padding:10px 14px;text-align:center;font-weight:500;color:#444;font-size:10px">#</th>
-            </tr>
-          </thead>
-          <tbody>{rows_html}</tbody>
-        </table>"""
-        st.html(table_html)
+        # Linhas com botões de ação por registro (item 1)
+        for _, row in lanc.iterrows():
+            lid = int(row["id"])
+            rc = st.columns([7, 0.6, 0.6])
+            rc[0].html(_cell_lanc(row))
+            if rc[1].button("✏️", key=f"edit_{lid}", help="Editar"):
+                st.session_state.editando_id = lid
+                st.rerun()
+            if rc[2].button("🗑", key=f"del_{lid}", help="Excluir"):
+                delete_lancamento(lid)
+                st.rerun()
 
-        # ── Painel de ações ───────────────────────────────────────────────────
-        st.divider()
+        # ── Formulário de edição (abre abaixo ao clicar em ✏️) ────────────────
         if st.session_state.editando_id:
             row_ed = lanc[lanc["id"] == st.session_state.editando_id]
             if not row_ed.empty:
                 row_ed = row_ed.iloc[0]
+                st.divider()
                 st.markdown(f"##### ✏️ Editando: *{row_ed['descricao']}*")
                 edit_ver = st.session_state.get(f"edit_ver_{st.session_state.editando_id}", 0)
                 campos_ed = form_lancamento(f"edit_{st.session_state.editando_id}_{edit_ver}", dados=row_ed.to_dict())
@@ -754,20 +782,6 @@ elif pagina == "Lançamentos":
                     st.rerun()
             else:
                 st.session_state.editando_id = None
-        else:
-            opcoes_ids = [int(r["id"]) for _, r in lanc.iterrows()]
-            opcoes_labels = {int(r["id"]): f"#{int(r['id'])} — {r['descricao']} (R$ {float(r['valor']):,.2f})"
-                             for _, r in lanc.iterrows()}
-            ca1, ca2, ca3 = st.columns([4, 1, 1])
-            sel_id = ca1.selectbox("Selecionar lançamento", opcoes_ids,
-                                   format_func=lambda x: opcoes_labels[x], label_visibility="collapsed",
-                                   placeholder="Selecione um lançamento para editar ou excluir...")
-            if ca2.button("✏️ Editar", use_container_width=True):
-                st.session_state.editando_id = sel_id
-                st.rerun()
-            if ca3.button("🗑 Excluir", use_container_width=True, type="primary"):
-                delete_lancamento(sel_id)
-                st.rerun()
 
         # ── Resumo por categoria ──────────────────────────────────────────────
         st.divider()
@@ -895,11 +909,13 @@ elif pagina == "Fixos":
     if fixos.empty:
         st.info("Nenhum fixo cadastrado ainda.")
     else:
+        if "editando_fixo_id" not in st.session_state:
+            st.session_state.editando_fixo_id = None
+
         ativos_df = fixos[fixos["ativo"] == True]
         st.markdown(f"<small style='color:#888'>{len(ativos_df)} ativos · estimativa mensal: <b>R$ {float(ativos_df['valor_estimado'].sum()):,.2f}</b></small>", unsafe_allow_html=True)
 
-        rows_fx = ""
-        for i, (_, row) in enumerate(fixos.iterrows()):
+        def _cell_fixo(row):
             ativo = bool(row.get("ativo", True))
             subtipo_val = row.get("subtipo_cartao")
             subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
@@ -912,55 +928,80 @@ elif pagina == "Fixos":
             if pt and not pd.isna(pt):
                 vt_fmt = f" · R$ {float(vt):,.2f}" if vt and not pd.isna(vt) else ""
                 pessoa_info = f'<div style="font-size:10px;color:#666;margin-top:1px">👤 {pt}{vt_fmt}</div>'
+            status_dot = ('<span style="color:#4ade80;font-size:11px">● ativo</span>' if ativo
+                          else '<span style="color:#555;font-size:11px">● pausado</span>')
+            op = "1" if ativo else "0.45"
+            return (
+                f'<div style="display:flex;align-items:center;font-family:inherit;padding:2px 0;opacity:{op}">'
+                f'<div style="flex:3;min-width:0"><span style="font-weight:500;font-size:13px">{_fmt_desc(row["descricao"])}</span>&nbsp;{badge}{pessoa_info}</div>'
+                f'<div style="flex:1.3;font-size:12px;color:#aaa">{cat}</div>'
+                f'<div style="flex:1.2;text-align:right;font-size:13px;font-weight:600">R$ {val_est:,.2f}</div>'
+                f'<div style="flex:1.1;text-align:center">{status_dot}</div>'
+                f'</div>'
+            )
 
-            status_dot = ('<span style="color:#4ade80;font-size:10px">● ativo</span>'
-                          if ativo else
-                          '<span style="color:#555;font-size:10px">● pausado</span>')
-            bg = "rgba(255,255,255,0.02)" if i % 2 == 0 else "transparent"
-            opacity = "1" if ativo else "0.45"
-            rows_fx += f"""
-            <tr style="background:{bg};border-bottom:1px solid rgba(255,255,255,0.06);opacity:{opacity}">
-              <td style="padding:9px 14px;min-width:200px">
-                <span style="font-weight:500;font-size:13px">{_fmt_desc(row['descricao'])}</span>&nbsp;{badge}{pessoa_info}
-              </td>
-              <td style="padding:9px 14px;font-size:12px;color:#aaa">{cat}</td>
-              <td style="padding:9px 14px;text-align:right;font-size:13px;font-weight:600;white-space:nowrap">R$ {val_est:,.2f}</td>
-              <td style="padding:9px 14px;text-align:center">{status_dot}</td>
-              <td style="padding:9px 14px;text-align:center;color:#444;font-size:11px">{int(row['id'])}</td>
-            </tr>"""
+        hc = st.columns([6, 0.6, 0.6, 1.0])
+        hc[0].html(
+            '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
+            'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0">'
+            '<div style="flex:3">Descrição</div><div style="flex:1.3">Categoria</div>'
+            '<div style="flex:1.2;text-align:right">Valor Est.</div>'
+            '<div style="flex:1.1;text-align:center">Status</div></div>'
+        )
 
-        fixos_table_html = f"""
-        <table style="width:100%;border-collapse:collapse;font-family:inherit;font-size:13px">
-          <thead>
-            <tr style="border-bottom:2px solid rgba(255,255,255,0.12)">
-              <th style="padding:10px 14px;text-align:left;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Descrição</th>
-              <th style="padding:10px 14px;text-align:left;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Categoria</th>
-              <th style="padding:10px 14px;text-align:right;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Valor Est.</th>
-              <th style="padding:10px 14px;text-align:center;font-weight:500;color:#666;font-size:11px;text-transform:uppercase;letter-spacing:.6px">Status</th>
-              <th style="padding:10px 14px;text-align:center;font-weight:500;color:#444;font-size:10px">#</th>
-            </tr>
-          </thead>
-          <tbody>{rows_fx}</tbody>
-        </table>"""
-        st.html(fixos_table_html)
-
-        # Painel de ações
-        st.divider()
-        df_fixos_full = load_sheet("fixos")
-        opcoes_fx = [int(r["id"]) for _, r in fixos.iterrows()]
-        opcoes_fx_labels = {int(r["id"]): f"#{int(r['id'])} — {r['descricao']} ({'ativo' if bool(r.get('ativo', True)) else 'pausado'})"
-                            for _, r in fixos.iterrows()}
-        fa1, fa2 = st.columns([5, 1])
-        sel_fx = fa1.selectbox("Selecionar fixo", opcoes_fx,
-                               format_func=lambda x: opcoes_fx_labels[x], label_visibility="collapsed")
-        sel_row = fixos[fixos["id"] == sel_fx].iloc[0] if sel_fx else None
-        if sel_row is not None:
-            esta_ativo = bool(sel_row.get("ativo", True))
-            btn_label = "⏸ Pausar" if esta_ativo else "▶ Ativar"
-            if fa2.button(btn_label, use_container_width=True):
-                df_fixos_full.loc[df_fixos_full["id"] == sel_fx, "ativo"] = not esta_ativo
-                save_sheet("fixos", df_fixos_full)
+        for _, row in fixos.iterrows():
+            fid = int(row["id"])
+            ativo = bool(row.get("ativo", True))
+            rc = st.columns([6, 0.6, 0.6, 1.0])
+            rc[0].html(_cell_fixo(row))
+            if rc[1].button("✏️", key=f"efx_{fid}", help="Editar"):
+                st.session_state.editando_fixo_id = fid
                 st.rerun()
+            if rc[2].button("🗑", key=f"dfx_{fid}", help="Excluir"):
+                delete_fixo(fid)
+                st.rerun()
+            if rc[3].button("⏸ Pausar" if ativo else "▶ Ativar", key=f"tfx_{fid}", use_container_width=True):
+                update_fixo(fid, ativo=not ativo)
+                st.rerun()
+
+        # ── Formulário de edição de fixo ──────────────────────────────────────
+        if st.session_state.editando_fixo_id:
+            ed = fixos[fixos["id"] == st.session_state.editando_fixo_id]
+            if not ed.empty:
+                ed = ed.iloc[0]
+                st.divider()
+                st.markdown(f"##### ✏️ Editando fixo: *{ed['descricao']}*")
+                ge1, ge2 = st.columns(2)
+                e_cartao = ge1.selectbox("Cartão", CARTOES,
+                    index=CARTOES.index(ed["cartao"]) if ed["cartao"] in CARTOES else 0, key="efx_cartao")
+                e_desc = ge2.text_input("Descrição", value=str(ed["descricao"]), key="efx_desc")
+                ge3, ge4 = st.columns(2)
+                e_cat = ge3.selectbox("Categoria", CATEGORIAS,
+                    index=CATEGORIAS.index(ed["categoria"]) if ed["categoria"] in CATEGORIAS else 0, key="efx_cat")
+                e_val = ge4.number_input("Valor estimado (R$)", min_value=0.0, step=0.01, format="%.2f",
+                    value=float(ed.get("valor_estimado") or 0), key="efx_val")
+                _pt = ed.get("pessoa_thais")
+                _tem_p = bool(_pt and not pd.isna(_pt))
+                e_div = st.checkbox("Dividir?", value=_tem_p, key="efx_div")
+                e_pessoa, e_vt = None, None
+                if e_div:
+                    gp1, gp2 = st.columns(2)
+                    e_pessoa = gp1.text_input("Pessoa", value=str(_pt) if _tem_p else "Thais", key="efx_pessoa")
+                    e_vt = gp2.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f",
+                        value=float(ed.get("valor_thais") or 0) if not pd.isna(ed.get("valor_thais")) else 0.0, key="efx_vt")
+                gb1, gb2 = st.columns(2)
+                if gb1.button("💾 Salvar fixo", use_container_width=True, key="efx_salvar"):
+                    update_fixo(st.session_state.editando_fixo_id,
+                        cartao=e_cartao, descricao=e_desc, categoria=e_cat, valor_estimado=e_val,
+                        pessoa_thais=e_pessoa if e_div else None,
+                        valor_thais=e_vt if e_div else None)
+                    st.session_state.editando_fixo_id = None
+                    st.rerun()
+                if gb2.button("✕ Cancelar", use_container_width=True, key="efx_cancelar"):
+                    st.session_state.editando_fixo_id = None
+                    st.rerun()
+            else:
+                st.session_state.editando_fixo_id = None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1030,13 +1071,18 @@ elif pagina == "Importar":
 
     uploaded_files = st.file_uploader(
         "Prints da fatura (até 5 imagens)",
-        type=["png", "jpg", "jpeg", "webp"],
+        type=["png", "jpg", "jpeg", "webp", "heic", "heif"],
         accept_multiple_files=True,
         label_visibility="collapsed",
     )
-    if uploaded_files and len(uploaded_files) > 5:
+    foto_cam = st.camera_input("📷 Ou tire uma foto da fatura", label_visibility="visible")
+
+    arquivos = list(uploaded_files) if uploaded_files else []
+    if foto_cam is not None:
+        arquivos.append(foto_cam)
+    if len(arquivos) > 5:
         st.warning("Máximo de 5 imagens por vez. Apenas as 5 primeiras serão analisadas.")
-        uploaded_files = uploaded_files[:5]
+        arquivos = arquivos[:5]
 
     col_up1, col_up2 = st.columns(2)
     mes_imp = col_up1.selectbox("Mês de destino", meses_disponiveis,
@@ -1044,12 +1090,33 @@ elif pagina == "Importar":
                                  format_func=lambda x: MES_LABELS.get(x, x))
     col_up2.selectbox("Cartão (será substituído pelo detectado)", CARTOES, key="imp_cartao")
 
-    if uploaded_files:
-        # Lê bytes uma vez e armazena para preview + análise
-        _imgs = [{"name": f.name, "bytes": f.read(),
-                  "ext": f.name.rsplit(".", 1)[-1].lower()} for f in uploaded_files]
-        ncols = min(len(_imgs), 5)
-        cols_prev = st.columns(ncols + [1] * (5 - ncols) if ncols < 5 else ncols)
+    def _to_jpeg_if_needed(nome, raw):
+        """Converte HEIC/HEIF (ou formatos não suportados) para JPEG via PIL."""
+        ext = (nome.rsplit(".", 1)[-1].lower() if "." in nome else "")
+        if ext in ("png", "jpg", "jpeg", "webp"):
+            return nome, raw, ext
+        try:
+            import io as _io
+            from PIL import Image
+            try:
+                import pillow_heif
+                pillow_heif.register_heif_opener()
+            except Exception:
+                pass
+            img = Image.open(_io.BytesIO(raw)).convert("RGB")
+            buf = _io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            return (nome.rsplit(".", 1)[0] + ".jpg"), buf.getvalue(), "jpeg"
+        except Exception:
+            return nome, raw, ext or "jpeg"
+
+    if arquivos:
+        _imgs = []
+        for f in arquivos:
+            nome = getattr(f, "name", "foto.jpg")
+            nm, by, ex = _to_jpeg_if_needed(nome, f.read())
+            _imgs.append({"name": nm, "bytes": by, "ext": ex})
+        cols_prev = st.columns(len(_imgs))
         for col, img in zip(cols_prev, _imgs):
             col.image(img["bytes"], caption=img["name"], width=160)
     else:

@@ -268,8 +268,9 @@ def criar_grupo_parcelamento(
 
     for i in range(total_parcelas):
         mes = _proximo_mes(mes_inicio, i)
-        restantes = total_parcelas - i
-        tipo = "ULTIMA" if restantes == 1 else "parcelado"
+        # "Faltam" = parcelas restantes APÓS a atual (ex.: 4x → mês 1 mostra 3)
+        faltam = total_parcelas - i - 1
+        tipo = "ULTIMA" if faltam == 0 else "parcelado"
         # garante que o mês existe
         dados_mes = get_mes(mes)
         if not dados_mes.get("salario_kelvin"):
@@ -279,7 +280,7 @@ def criar_grupo_parcelamento(
             valor=valor_parcela, descricao=descricao, categoria=categoria,
             valor_thais=valor_thais, pessoa_thais=pessoa_thais,
             tipo_parcela=tipo, parcela_atual=i + 1,
-            total_parcelas=restantes, id_grupo=novo_gid,
+            total_parcelas=faltam, id_grupo=novo_gid,
             subtipo_cartao=subtipo_cartao,
         )
     return novo_gid
@@ -345,6 +346,20 @@ def get_fixos(apenas_ativos: bool = True) -> pd.DataFrame:
     if apenas_ativos:
         return df[df["ativo"] == True].copy()
     return df.copy()
+
+
+def update_fixo(fixo_id: int, **campos):
+    df = load_sheet("fixos")
+    for col, val in campos.items():
+        if col in df.columns:
+            df.loc[df["id"] == fixo_id, col] = val
+    save_sheet("fixos", df)
+
+
+def delete_fixo(fixo_id: int):
+    df = load_sheet("fixos")
+    df = df[df["id"] != fixo_id]
+    save_sheet("fixos", df)
 
 
 def resumo_mes(mes_ano: str) -> dict:
