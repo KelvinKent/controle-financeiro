@@ -37,6 +37,17 @@ def badge_cartao(cartao: str, subtipo: str = None) -> str:
     return f'<span style="{s}">{label}</span>'
 
 
+def _fmt_desc(desc) -> str:
+    """Normaliza a exibição da descrição: se estiver toda em maiúsculas
+    (ex.: vindo de print de fatura), converte para formato Título.
+    Não altera descrições já com capitalização própria."""
+    s = str(desc) if desc is not None else ""
+    letras = [c for c in s if c.isalpha()]
+    if letras and all(c.isupper() for c in letras):
+        return s.title()
+    return s
+
+
 def _mes_padrao(meses: list) -> str:
     hoje = date.today()
     prox = f"{hoje.year+1}-01" if hoje.month == 12 else f"{hoje.year}-{hoje.month+1:02d}"
@@ -692,7 +703,7 @@ elif pagina == "Lançamentos":
             rows_html += f"""
             <tr style="background:{bg};border-bottom:1px solid rgba(255,255,255,0.06)">
               <td style="padding:9px 14px;min-width:220px">
-                <span style="font-weight:500;font-size:13px">{row['descricao']}</span>&nbsp;{badge}{pessoa_line}
+                <span style="font-weight:500;font-size:13px">{_fmt_desc(row['descricao'])}</span>&nbsp;{badge}{pessoa_line}
               </td>
               <td style="padding:9px 14px;font-size:12px;color:#aaa;white-space:nowrap">{cat}</td>
               <td style="padding:9px 14px">{chip}</td>
@@ -910,7 +921,7 @@ elif pagina == "Fixos":
             rows_fx += f"""
             <tr style="background:{bg};border-bottom:1px solid rgba(255,255,255,0.06);opacity:{opacity}">
               <td style="padding:9px 14px;min-width:200px">
-                <span style="font-weight:500;font-size:13px">{row['descricao']}</span>&nbsp;{badge}{pessoa_info}
+                <span style="font-weight:500;font-size:13px">{_fmt_desc(row['descricao'])}</span>&nbsp;{badge}{pessoa_info}
               </td>
               <td style="padding:9px 14px;font-size:12px;color:#aaa">{cat}</td>
               <td style="padding:9px 14px;text-align:right;font-size:13px;font-weight:600;white-space:nowrap">R$ {val_est:,.2f}</td>
