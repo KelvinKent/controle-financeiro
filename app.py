@@ -750,7 +750,7 @@ elif pagina == "Lançamentos":
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"])
     filtro_cartao = fc3.multiselect("Cartão", CARTOES)
     filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER)
-    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais recentes", "Mais antigos"])
+    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"])
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...")
 
     lanc = get_lancamentos(mes)
@@ -769,13 +769,10 @@ elif pagina == "Lançamentos":
         if busca:
             lanc = lanc[lanc["descricao"].str.contains(busca, case=False, na=False)]
 
-    # Ordenação por data
+    # Ordenação ESTÁVEL por id (evita reorganização ao marcar/desmarcar checkbox).
+    # id crescente = mais antigos primeiro, mais novos sempre no final.
     if not lanc.empty:
-        if "data_lancamento" in lanc.columns:
-            lanc["data_lancamento"] = pd.to_datetime(lanc["data_lancamento"], errors="coerce")
-            lanc = lanc.sort_values("data_lancamento", ascending=(filtro_ordem == "Mais antigos"), na_position="last")
-        else:
-            lanc = lanc.sort_values("id", ascending=(filtro_ordem == "Mais antigos"))
+        lanc = lanc.sort_values("id", ascending=(filtro_ordem == "Mais antigos"))
 
     # ── Tabela de lançamentos ─────────────────────────────────────────────────
     if lanc.empty:
