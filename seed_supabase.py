@@ -13,9 +13,27 @@ import os
 import sys
 import pandas as pd
 from pathlib import Path
+from urllib.parse import quote, unquote
 from sqlalchemy import create_engine
 
 XLSX = Path(__file__).parent / "data" / "financeiro.xlsx"
+
+
+def normalize_pg_url(url: str) -> str:
+    """Normaliza a URL do Postgres e codifica a senha (caracteres como @, :, /
+    na senha quebram o parse da URL). Aceita senha crua OU já codificada."""
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if "://" not in url or "@" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    userinfo, host = rest.rsplit("@", 1)  # último @ separa userinfo do host
+    if ":" in userinfo:
+        user, pwd = userinfo.split(":", 1)
+        pwd = quote(unquote(pwd), safe="")  # re-codifica (evita codificar duas vezes)
+        userinfo = f"{user}:{pwd}"
+    return f"{scheme}://{userinfo}@{host}"
 
 
 def main():
@@ -23,8 +41,7 @@ def main():
     if not url:
         print("ERRO: forneça a DATABASE_URL como argumento ou variável de ambiente.")
         sys.exit(1)
-    if url.startswith("postgres://"):
-        url = url.replace("postgres://", "postgresql://", 1)
+    url = normalize_pg_url(url)
     if not XLSX.exists():
         print(f"ERRO: banco local não encontrado em {XLSX}")
         sys.exit(1)

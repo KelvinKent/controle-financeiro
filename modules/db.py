@@ -21,12 +21,26 @@ _DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 USE_POSTGRES = bool(_DATABASE_URL)
 _engine = None
 
+def _normalize_pg_url(url: str) -> str:
+    """Normaliza a URL do Postgres e codifica a senha (caracteres como @ na senha
+    quebram o parse). Aceita senha crua ou já codificada."""
+    from urllib.parse import quote, unquote
+    url = url.strip()
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+    if "://" not in url or "@" not in url:
+        return url
+    scheme, rest = url.split("://", 1)
+    userinfo, host = rest.rsplit("@", 1)
+    if ":" in userinfo:
+        user, pwd = userinfo.split(":", 1)
+        userinfo = f"{user}:{quote(unquote(pwd), safe='')}"
+    return f"{scheme}://{userinfo}@{host}"
+
+
 if USE_POSTGRES:
     from sqlalchemy import create_engine, inspect as _sa_inspect
-    _url = _DATABASE_URL
-    if _url.startswith("postgres://"):  # normaliza esquema antigo
-        _url = _url.replace("postgres://", "postgresql://", 1)
-    _engine = create_engine(_url, pool_pre_ping=True)
+    _engine = create_engine(_normalize_pg_url(_DATABASE_URL), pool_pre_ping=True)
 
 # Colunas de cada tabela (usadas para criar tabelas vazias no Postgres)
 _SCHEMA = {
