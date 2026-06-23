@@ -47,7 +47,7 @@ _SCHEMA = {
     "lancamentos": ["id", "mes_ano", "cartao", "dono", "valor", "descricao",
                     "categoria", "valor_thais", "pessoa_thais", "tipo_parcela",
                     "parcela_atual", "total_parcelas", "id_grupo", "subtipo_cartao",
-                    "data_lancamento"],
+                    "data_lancamento", "conferido"],
     "meses": ["mes_ano", "salario_kelvin", "salario_thais", "fechado"],
     "fixos": ["id", "cartao", "descricao", "categoria", "valor_estimado",
               "pessoa_thais", "valor_thais", "ativo"],
@@ -56,6 +56,8 @@ _SCHEMA = {
                             "pessoa_thais", "valor_thais", "cancelado"],
     "config": ["chave", "valor"],
     "orcamentos": ["mes_ano", "categoria", "valor_planejado"],
+    "painel": ["mes_ano", "agua_boleto", "youtube_lembrete", "spotify_lembrete",
+               "cdb_reserva", "previdencia"],
 }
 
 SHEETS = ["lancamentos", "meses", "fixos", "config"]
@@ -190,13 +192,15 @@ def get_lancamentos(mes_ano: str) -> pd.DataFrame:
 def add_lancamento(mes_ano, cartao, dono, valor, descricao, categoria,
                    valor_thais=None, pessoa_thais=None, tipo_parcela="única",
                    parcela_atual=None, total_parcelas=None, id_grupo=None,
-                   subtipo_cartao=None, data_lancamento=None):
+                   subtipo_cartao=None, data_lancamento=None, conferido=False):
     from datetime import date as _date
     df = load_sheet("lancamentos")
     if "subtipo_cartao" not in df.columns:
         df["subtipo_cartao"] = None
     if "data_lancamento" not in df.columns:
         df["data_lancamento"] = None
+    if "conferido" not in df.columns:
+        df["conferido"] = False
     if data_lancamento is None:
         data_lancamento = _date.today().isoformat()
     novo_id = int(df["id"].max() + 1) if not df.empty and not pd.isna(df["id"].max()) else 1
@@ -207,10 +211,82 @@ def add_lancamento(mes_ano, cartao, dono, valor, descricao, categoria,
         "tipo_parcela": tipo_parcela, "parcela_atual": parcela_atual,
         "total_parcelas": total_parcelas, "id_grupo": id_grupo,
         "subtipo_cartao": subtipo_cartao, "data_lancamento": data_lancamento,
+        "conferido": bool(conferido),
     }
     df = pd.concat([df, pd.DataFrame([novo])], ignore_index=True)
     save_sheet("lancamentos", df)
     return novo_id
+
+
+def get_painel(mes_ano: str) -> dict:
+    """Campos editáveis do painel-resumo da Home (por mês)."""
+    df = load_sheet("painel")
+    base = {"mes_ano": mes_ano, "agua_boleto": 0.0, "youtube_lembrete": "",
+            "spotify_lembrete": "", "cdb_reserva": 0.0, "previdencia": 0.0}
+    if df.empty or "mes_ano" not in df.columns:
+        return base
+    row = df[df["mes_ano"] == mes_ano]
+    if row.empty:
+        return base
+    d = row.iloc[0].to_dict()
+    return {**base, **{k: v for k, v in d.items() if not pd.isna(v)}}
+
+
+def set_painel(mes_ano: str, **campos):
+    df = load_sheet("painel")
+    cols = _SCHEMA["painel"]
+    if df.empty or "mes_ano" not in df.columns:
+        df = pd.DataFrame(columns=cols)
+    if mes_ano in df["mes_ano"].values:
+        for k, v in campos.items():
+            if k in df.columns:
+                df.loc[df["mes_ano"] == mes_ano, k] = v
+    else:
+        novo = {"mes_ano": mes_ano, **{c: None for c in cols if c != "mes_ano"}}
+        novo.update(campos)
+        df = pd.concat([df, pd.DataFrame([novo])], ignore_index=True)
+    save_sheet("painel", df)
+
+
+def calcular_painel(mes_ano: str) -> dict:
+    """Reproduz as fórmulas do painel-resumo da planilha CONTAS.xlsx."""
+    lanc = get_lancamentos(mes_ano)
+    mes = get_mes(mes_ano)
+    pin = get_painel(mes_ano)
+
+    def _soma(df, col="valor"):
+        return float(df[col].sum()) if not df.empty else 0.0
+
+    if lanc.empty:
+        cartao_k = cartao_t = pagamentos = mae = thais_cartao = 0.0
+    else:
+        cartao_k = _soma(lanc[lanc["dono"].astype(str).str.strip().str.lower() == "kelvin"])
+        cartao_t = _soma(lanc[lanc["dono"].astype(str).str.strip().str.lower() == "thais"])
+        vt = lanc["valor_thais"].fillna(0)
+        pagamentos = -float(vt.sum())
+        mae = -_soma(lanc[lanc["pessoa_thais"].astype(str).str.strip().str.lower() == "mãe"])
+        mask_t = lanc["pessoa_thais"].astype(str).str.strip().str.lower() == "thais"
+        thais_cartao = float(lanc.loc[mask_t, "valor_thais"].fillna(0).sum())
+
+    agua = float(pin.get("agua_boleto") or 0)
+    total_gastos = cartao_k + cartao_t + pagamentos + agua + mae
+    sal_k = float(mes.get("salario_kelvin") or 0)
+    sal_t = float(mes.get("salario_thais") or 0)
+    total_thais = thais_cartao
+
+    return {
+        "salario_kelvin": sal_k, "salario_thais": sal_t,
+        "cartao_kelvin": cartao_k, "cartao_thais": cartao_t,
+        "pagamentos": pagamentos, "agua_boleto": agua, "mae": mae,
+        "total_gastos": total_gastos,
+        "diferenca_kelvin": sal_k - total_gastos,
+        "thais_cartao": thais_cartao, "thais_total": total_thais,
+        "diferenca_thais": sal_t - total_thais,
+        "youtube_lembrete": pin.get("youtube_lembrete") or "",
+        "spotify_lembrete": pin.get("spotify_lembrete") or "",
+        "cdb_reserva": float(pin.get("cdb_reserva") or 0),
+        "previdencia": float(pin.get("previdencia") or 0),
+    }
 
 
 def aplicar_fixos_ao_mes(mes_ano: str) -> int:
@@ -326,6 +402,16 @@ def cancelar_parcelas_restantes(grupo_id: int, mes_atual: str):
 
 
 def update_lancamento(lancamento_id: int, **campos):
+    cols = [c for c in campos if c in _SCHEMA["lancamentos"]]
+    if USE_POSTGRES and cols:
+        # UPDATE direto (rápido) em vez de reescrever a tabela inteira
+        from sqlalchemy import text
+        sets = ", ".join(f'"{c}" = :{c}' for c in cols)
+        params = {c: campos[c] for c in cols}
+        params["_id"] = int(lancamento_id)
+        with _engine.begin() as conn:
+            conn.execute(text(f'UPDATE lancamentos SET {sets} WHERE id = :_id'), params)
+        return
     df = load_sheet("lancamentos")
     for col, val in campos.items():
         if col in df.columns:
@@ -334,6 +420,11 @@ def update_lancamento(lancamento_id: int, **campos):
 
 
 def delete_lancamento(lancamento_id: int):
+    if USE_POSTGRES:
+        from sqlalchemy import text
+        with _engine.begin() as conn:
+            conn.execute(text("DELETE FROM lancamentos WHERE id = :_id"), {"_id": int(lancamento_id)})
+        return
     df = load_sheet("lancamentos")
     df = df[df["id"] != lancamento_id]
     save_sheet("lancamentos", df)

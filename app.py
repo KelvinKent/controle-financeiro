@@ -15,6 +15,7 @@ from modules.db import (
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
     fazer_backup, listar_backups, update_fixo, delete_fixo,
+    get_painel, set_painel, calcular_painel,
 )
 
 MES_LABELS = {
@@ -170,6 +171,111 @@ if pagina == "Dashboard":
             st.rerun()
 
     sal_k, sal_t = novo_sal_k, novo_sal_t
+    st.divider()
+
+    # ── Painel-resumo (réplica da planilha CONTAS.xlsx) ───────────────────────
+    pin = calcular_painel(mes)
+
+    def _br(v):
+        return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _val_dif(v):
+        cor = "#ff5b5b" if v < 0 else "#21c354"
+        sinal = "-" if v < 0 else ""
+        return f'<span style="color:{cor};font-weight:700">{sinal}R$ {abs(v):,.2f}</span>'.replace(",", "X").replace(".", ",").replace("X", ".")
+
+    def _linha(label, valor, bold=False, neg_red=True, bg="transparent"):
+        w = "700" if bold else "500"
+        cor = "#ff5b5b" if (neg_red and valor < 0) else "#e8e8e8"
+        return (f'<tr style="border-bottom:1px solid rgba(255,255,255,0.06);background:{bg}">'
+                f'<td style="padding:6px 12px;font-size:13px;font-weight:{w}">{label}</td>'
+                f'<td style="padding:6px 12px;text-align:right;font-size:13px;font-weight:{w};color:{cor};white-space:nowrap">{_br(valor)}</td></tr>')
+
+    hdr = ('background:#1a1a2e;color:#fff;padding:6px 12px;font-size:12px;font-weight:700;'
+           'text-align:center;text-transform:uppercase;letter-spacing:.5px')
+    box = 'border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;margin-bottom:12px'
+
+    painel_html = f"""
+    <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
+      <div style="flex:1;min-width:280px;{box}">
+        <div style="{hdr}">{cfg.get('nome_kelvin','Kelvin')}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+            <td style="padding:6px 12px;background:#2f6fd1;color:#fff;font-size:13px;font-weight:600">Salário</td>
+            <td style="padding:6px 12px;background:#2f6fd1;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_kelvin'])}</td>
+          </tr>
+          <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
+            <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_kelvin'])}</td></tr>
+        </table>
+      </div>
+      <div style="flex:1;min-width:280px;{box}">
+        <div style="{hdr}">{cfg.get('nome_thais','Thais')}</div>
+        <table style="width:100%;border-collapse:collapse">
+          <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+            <td style="padding:6px 12px;background:#1e9e5a;color:#fff;font-size:13px;font-weight:600">Salário</td>
+            <td style="padding:6px 12px;background:#1e9e5a;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_thais'])}</td>
+          </tr>
+          <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
+            <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_thais'])}</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
+      <div style="flex:1;min-width:280px;{box}">
+        <div style="{hdr}">Gastos + Pix</div>
+        <table style="width:100%;border-collapse:collapse">
+          {_linha('Cartão ' + cfg.get('nome_kelvin','Kelvin'), pin['cartao_kelvin'])}
+          {_linha('Cartão ' + cfg.get('nome_thais','Thais'), pin['cartao_thais'])}
+          {_linha('Pagamentos', pin['pagamentos'])}
+          {_linha('Água - Boleto', pin['agua_boleto'])}
+          {_linha('Mãe', pin['mae'])}
+          {_linha('Total', pin['total_gastos'], bold=True, bg='rgba(255,255,255,0.05)')}
+        </table>
+      </div>
+      <div style="flex:1;min-width:280px;{box}">
+        <div style="{hdr}">Gastos {cfg.get('nome_thais','Thais')}</div>
+        <table style="width:100%;border-collapse:collapse">
+          {_linha('Cartão', pin['thais_cartao'])}
+          {_linha('Total', pin['thais_total'], bold=True, bg='rgba(255,255,255,0.05)')}
+        </table>
+      </div>
+    </div>
+
+    <div style="font-family:inherit;{box}">
+      <div style="{hdr}">Lembretes — quem me paga</div>
+      <div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin['youtube_lembrete'] or '—'}</div>
+      <div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin['spotify_lembrete'] or '—'}</div>
+    </div>
+
+    <div style="font-family:inherit;{box}">
+      <div style="{hdr}">Investimentos</div>
+      <table style="width:100%;border-collapse:collapse">
+        {_linha('CDB (Reserva)', pin['cdb_reserva'], neg_red=False)}
+        {_linha('Previdência', pin['previdencia'], neg_red=False)}
+      </table>
+    </div>
+    """
+    st.markdown("#### Resumo do mês")
+    st.html(painel_html)
+
+    with st.expander("⚙️ Editar campos do painel (Água, lembretes e investimentos)"):
+        st.caption("Apenas estes campos são de digitação livre — os demais são calculados dos lançamentos.")
+        pe1, pe2, pe3 = st.columns(3)
+        ed_agua = pe1.number_input("Água - Boleto (R$)", min_value=0.0, step=1.0, format="%.2f",
+            value=float(pin["agua_boleto"]), key="pin_agua")
+        ed_cdb = pe2.number_input("CDB / Reserva (R$)", min_value=0.0, step=100.0, format="%.2f",
+            value=float(pin["cdb_reserva"]), key="pin_cdb")
+        ed_prev = pe3.number_input("Previdência (R$)", min_value=0.0, step=100.0, format="%.2f",
+            value=float(pin["previdencia"]), key="pin_prev")
+        ed_yt = st.text_input("Lembrete YouTube", value=pin["youtube_lembrete"], key="pin_yt")
+        ed_sp = st.text_input("Lembrete Spotify", value=pin["spotify_lembrete"], key="pin_sp")
+        if st.button("💾 Salvar painel", key="btn_pin"):
+            set_painel(mes, agua_boleto=ed_agua, cdb_reserva=ed_cdb, previdencia=ed_prev,
+                       youtube_lembrete=ed_yt, spotify_lembrete=ed_sp)
+            st.success("Painel atualizado!")
+            st.rerun()
+
     st.divider()
 
     res = resumo_mes(mes)
@@ -728,8 +834,10 @@ elif pagina == "Lançamentos":
             valor = float(row["valor"])
             cat = str(row.get("categoria", ""))
             cor_val = "#4ade80" if valor < 0 else "inherit"
+            conf = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
+            borda = "border-left:3px solid #21c354;background:rgba(33,195,84,0.06)" if conf else "border-left:3px solid transparent"
             return (
-                f'<div style="display:flex;align-items:center;font-family:inherit;padding:2px 0">'
+                f'<div style="display:flex;align-items:center;font-family:inherit;padding:4px 6px;{borda}">'
                 f'<div style="flex:3.2;min-width:0">'
                 f'<span style="font-weight:500;font-size:13px">{_fmt_desc(row["descricao"])}</span>&nbsp;{badge}{pessoa_line}</div>'
                 f'<div style="flex:1.3;font-size:12px;color:#aaa">{cat}</div>'
@@ -739,9 +847,14 @@ elif pagina == "Lançamentos":
                 f'</div>'
             )
 
+        def _toggle_conferido(lid, key):
+            update_lancamento(lid, conferido=bool(st.session_state[key]))
+
         # Cabeçalho
-        hc = st.columns([7, 0.6, 0.6])
-        hc[0].html(
+        hc = st.columns([0.5, 6.5, 0.6, 0.6])
+        hc[0].html('<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
+                   'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0;text-align:center">✓</div>')
+        hc[1].html(
             '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
             'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0">'
             '<div style="flex:3.2">Descrição</div><div style="flex:1.3">Categoria</div>'
@@ -749,17 +862,25 @@ elif pagina == "Lançamentos":
             '<div style="flex:1.3;text-align:right">Valor</div></div>'
         )
 
-        # Linhas com botões de ação por registro (item 1)
+        # Linhas com checkbox Conferido + botões de ação por registro
         for _, row in lanc.iterrows():
             lid = int(row["id"])
-            rc = st.columns([7, 0.6, 0.6])
-            rc[0].html(_cell_lanc(row))
-            if rc[1].button("✏️", key=f"edit_{lid}", help="Editar"):
+            conf_atual = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
+            rc = st.columns([0.5, 6.5, 0.6, 0.6])
+            rc[0].checkbox("Conferido", value=conf_atual, key=f"conf_{lid}",
+                           on_change=_toggle_conferido, args=(lid, f"conf_{lid}"),
+                           label_visibility="collapsed")
+            rc[1].html(_cell_lanc(row))
+            if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
                 st.rerun()
-            if rc[2].button("🗑", key=f"del_{lid}", help="Excluir"):
+            if rc[3].button("🗑", key=f"del_{lid}", help="Excluir"):
                 delete_lancamento(lid)
                 st.rerun()
+
+        # Contador de conferência
+        n_conf = int(lanc["conferido"].fillna(False).astype(bool).sum()) if "conferido" in lanc.columns else 0
+        st.caption(f"✅ {n_conf} de {len(lanc)} lançamentos conferidos.")
 
         # ── Formulário de edição (abre abaixo ao clicar em ✏️) ────────────────
         if st.session_state.editando_id:
