@@ -1075,11 +1075,7 @@ elif pagina == "Importar":
         accept_multiple_files=True,
         label_visibility="collapsed",
     )
-    foto_cam = st.camera_input("📷 Ou tire uma foto da fatura", label_visibility="visible")
-
     arquivos = list(uploaded_files) if uploaded_files else []
-    if foto_cam is not None:
-        arquivos.append(foto_cam)
     if len(arquivos) > 5:
         st.warning("Máximo de 5 imagens por vez. Apenas as 5 primeiras serão analisadas.")
         arquivos = arquivos[:5]
