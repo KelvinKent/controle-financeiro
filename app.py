@@ -15,13 +15,36 @@ from modules.db import (
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
     fazer_backup, listar_backups, update_fixo, delete_fixo,
-    get_painel, set_painel, calcular_painel,
+    get_painel, set_painel, calcular_painel, add_lancamentos_bulk,
 )
 
-MES_LABELS = {
-    "2026-07": "Julho/2026", "2026-08": "Agosto/2026", "2026-09": "Setembro/2026",
-    "2026-10": "Outubro/2026", "2026-11": "Novembro/2026", "2026-12": "Dezembro/2026",
-}
+_MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+_MESES_PT_ABREV = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+                   "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+
+def fmt_mes(ma, curto=False):
+    """Formata 'AAAA-MM' como 'Mês/AAAA' (ou 'Mês/AA' abreviado). Qualquer ano."""
+    try:
+        a, m = str(ma).split("-")
+        i = int(m) - 1
+        if curto:
+            return f"{_MESES_PT_ABREV[i]}/{a[2:]}"
+        return f"{_MESES_PT[i]}/{a}"
+    except Exception:
+        return str(ma)
+
+
+class _MesLabels:
+    """Compatível com MES_LABELS.get(ma, default) — formata qualquer mês."""
+    def get(self, ma, default=None):
+        if not ma:
+            return default if default is not None else ma
+        return fmt_mes(ma)
+
+
+MES_LABELS = _MesLabels()
 
 
 def badge_cartao(cartao: str, subtipo: str = None) -> str:
@@ -934,10 +957,10 @@ elif pagina == "Parcelamentos":
         st.markdown(f"**{len(ativos)} grupo(s) ativo(s)**")
         st.divider()
 
-        MES_SHORT = {
-            "2026-07": "Jul/26", "2026-08": "Ago/26", "2026-09": "Set/26",
-            "2026-10": "Out/26", "2026-11": "Nov/26", "2026-12": "Dez/26",
-        }
+        class _MesShort:
+            def get(self, ma, default=None):
+                return fmt_mes(ma, curto=True) if ma else default
+        MES_SHORT = _MesShort()
 
         for _, g in ativos.iterrows():
             gid = int(g["id"])
@@ -1481,6 +1504,52 @@ elif pagina == "Configurações":
         set_config("divisao_kelvin", div_k)
         set_config("divisao_thais", div_t)
         st.success("Configurações salvas!")
+        st.rerun()
+
+    # ── Criar meses futuros (previsão) ────────────────────────────────────────
+    st.divider()
+    st.markdown("#### Criar meses futuros")
+    _meses_atuais = get_meses()
+    _ultimo = _meses_atuais[-1] if _meses_atuais else "2026-12"
+    st.caption(f"Último mês cadastrado: **{fmt_mes(_ultimo)}**. "
+               "Crie quantos meses quiser à frente para projetar suas finanças.")
+
+    cm1, cm2 = st.columns([1, 2])
+    qtd_meses = cm1.number_input("Quantos meses adicionar", min_value=1, max_value=36, value=1, step=1)
+    aplicar_fixos_novo = cm2.checkbox(
+        "Já lançar os gastos fixos ativos em cada novo mês", value=True,
+        help="Projeta automaticamente os fixos (com valor estimado) nos meses criados.")
+
+    # Prévia dos meses que serão criados
+    _previa = [_proximo_mes(_ultimo, i + 1) for i in range(int(qtd_meses))]
+    st.caption("Serão criados: " + " · ".join(fmt_mes(m) for m in _previa))
+
+    if st.button("➕ Criar meses", use_container_width=False):
+        sal_base = get_mes(_ultimo)
+        sk = float(sal_base.get("salario_kelvin") or 0)
+        stz = float(sal_base.get("salario_thais") or 0)
+        novos_meses = [m for m in _previa if m not in _meses_atuais]
+        for m in novos_meses:
+            upsert_mes(m, sk, stz)            # herda salários do último mês (editável depois)
+
+        # Projeta fixos em lote (1 escrita só) — evita lentidão/concorrência
+        if aplicar_fixos_novo and novos_meses:
+            fixos_ativos = get_fixos(apenas_ativos=True)
+            linhas = []
+            for m in novos_meses:
+                for _, fx in fixos_ativos.iterrows():
+                    vt = float(fx["valor_thais"]) if fx.get("valor_thais") and not pd.isna(fx["valor_thais"]) else None
+                    pt = str(fx["pessoa_thais"]) if fx.get("pessoa_thais") and not pd.isna(fx["pessoa_thais"]) else None
+                    linhas.append({
+                        "mes_ano": m, "cartao": str(fx["cartao"]), "dono": "Kelvin",
+                        "valor": float(fx.get("valor_estimado") or 0),
+                        "descricao": str(fx["descricao"]), "categoria": str(fx["categoria"]),
+                        "valor_thais": vt, "pessoa_thais": pt, "tipo_parcela": "FIXO",
+                    })
+            add_lancamentos_bulk(linhas)
+
+        st.success(f"{len(novos_meses)} mês(es) criado(s)! Salários herdados de {fmt_mes(_ultimo)} "
+                   f"(ajuste em cada mês na Home).")
         st.rerun()
 
     # ── Exportação completa ───────────────────────────────────────────────────

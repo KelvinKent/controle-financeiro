@@ -218,6 +218,25 @@ def add_lancamento(mes_ano, cartao, dono, valor, descricao, categoria,
     return novo_id
 
 
+def add_lancamentos_bulk(rows: list) -> int:
+    """Insere vários lançamentos de uma vez (1 escrita só). Para criação de meses."""
+    if not rows:
+        return 0
+    df = load_sheet("lancamentos")
+    start_id = int(df["id"].max()) + 1 if not df.empty and not pd.isna(df["id"].max()) else 1
+    prep = []
+    for i, r in enumerate(rows):
+        novo = {c: None for c in _SCHEMA["lancamentos"]}
+        novo.update(r)
+        novo["id"] = start_id + i
+        novo["conferido"] = bool(novo.get("conferido"))
+        prep.append(novo)
+    novo_df = pd.DataFrame(prep)[_SCHEMA["lancamentos"]]
+    df = pd.concat([df, novo_df], ignore_index=True) if not df.empty else novo_df
+    save_sheet("lancamentos", df)
+    return len(prep)
+
+
 def get_painel(mes_ano: str) -> dict:
     """Campos editáveis do painel-resumo da Home (por mês)."""
     df = load_sheet("painel")
