@@ -65,6 +65,7 @@ SHEETS = ["lancamentos", "meses", "fixos", "config"]
 CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Reforma", "Negócios", "Metinha", "Livre"]
 CARTOES = ["Santander", "Itaú", "C6"]
 SUBTIPOS_SANTANDER = ["Regular", "Físico"]
+SUBTIPOS_ITAU = ["Visa", "Mastercard"]
 TIPOS = ["única", "FIXO", "ULTIMA"]
 
 CORES_CARTAO = {

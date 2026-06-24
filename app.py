@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from modules.db import (
     db_exists, get_meses, get_mes, upsert_mes, get_lancamentos,
     add_lancamento, update_lancamento, delete_lancamento, get_config, set_config,
-    resumo_mes, CATEGORIAS, CARTOES, SUBTIPOS_SANTANDER, CORES_CARTAO,
+    resumo_mes, CATEGORIAS, CARTOES, SUBTIPOS_SANTANDER, SUBTIPOS_ITAU, CORES_CARTAO,
     get_fixos, load_sheet, save_sheet, aplicar_fixos_ao_mes,
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
@@ -47,6 +47,9 @@ class _MesLabels:
 MES_LABELS = _MesLabels()
 
 
+CORES_BANDEIRA_ITAU = {"Visa": "#1A1F71", "Mastercard": "#EB001B"}
+
+
 def badge_cartao(cartao: str, subtipo: str = None) -> str:
     if cartao == "Itaú":
         bg, fg, label = "#FF6B00", "#ffffff", "Itaú"
@@ -58,7 +61,13 @@ def badge_cartao(cartao: str, subtipo: str = None) -> str:
         bg, fg, label = "#EC0000", "#ffffff", "Santander"
     s = (f"background:{bg};color:{fg};padding:2px 8px;border-radius:4px;"
          f"font-size:12px;font-weight:600;display:inline-block;white-space:nowrap")
-    return f'<span style="{s}">{label}</span>'
+    html = f'<span style="{s}">{label}</span>'
+    if cartao == "Itaú" and subtipo in CORES_BANDEIRA_ITAU:
+        bb = CORES_BANDEIRA_ITAU[subtipo]
+        bs = (f"background:{bb};color:#ffffff;padding:2px 7px;border-radius:4px;"
+              f"font-size:11px;font-weight:700;display:inline-block;white-space:nowrap;margin-left:4px")
+        html += f'<span style="{bs}">{subtipo}</span>'
+    return html
 
 
 def _fmt_desc(desc) -> str:
@@ -654,20 +663,24 @@ elif pagina == "Histórico":
 # LANÇAMENTOS
 # ══════════════════════════════════════════════════════════════════════════════
 elif pagina == "Lançamentos":
+    # Cada cartão com sub-bandeira tem sua própria key de filtro (multiselect).
+    SUBTIPO_FILTRO_KEY = {"Santander": "lanc_filtro_subtipo", "Itaú": "lanc_filtro_subtipo_itau"}
+
     # Resolve cliques nos cards de "Totais por cartão" ANTES de criar os widgets de
     # filtro (a key de um widget não pode ser escrita depois de instanciado no mesmo run).
     _toggle = st.session_state.pop("_toggle_cartao_request", None)
     if _toggle is not None:
         c_tog, sub_tog = _toggle
         cartao_set = list(st.session_state.get("lanc_filtro_cartao", []))
-        subtipo_set = list(st.session_state.get("lanc_filtro_subtipo", []))
-        if sub_tog == "Físico":
-            if "Físico" in subtipo_set:
-                subtipo_set.remove("Físico")
-                if c_tog in cartao_set and "Regular" not in subtipo_set:
+        sub_key = SUBTIPO_FILTRO_KEY.get(c_tog)
+        subtipo_set = list(st.session_state.get(sub_key, [])) if sub_key else []
+        if sub_tog:
+            if sub_tog in subtipo_set:
+                subtipo_set.remove(sub_tog)
+                if c_tog in cartao_set and not subtipo_set:
                     cartao_set.remove(c_tog)
             else:
-                subtipo_set.append("Físico")
+                subtipo_set.append(sub_tog)
                 if c_tog not in cartao_set:
                     cartao_set.append(c_tog)
         else:
@@ -676,7 +689,8 @@ elif pagina == "Lançamentos":
             else:
                 cartao_set.append(c_tog)
         st.session_state["lanc_filtro_cartao"] = cartao_set
-        st.session_state["lanc_filtro_subtipo"] = subtipo_set
+        if sub_key:
+            st.session_state[sub_key] = subtipo_set
 
     col_title, col_fixos = st.columns([3, 1])
     col_title.title(f"Lançamentos — {mes_label}")
@@ -708,6 +722,11 @@ elif pagina == "Lançamentos":
             sub_idx = SUBTIPOS_SANTANDER.index(sub_atual) if sub_atual in SUBTIPOS_SANTANDER else 0
             subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=sub_idx,
                 horizontal=True, key=f"{prefixo}_subtipo")
+        elif cartao == "Itaú":
+            sub_atual = d.get("subtipo_cartao") or "Visa"
+            sub_idx = SUBTIPOS_ITAU.index(sub_atual) if sub_atual in SUBTIPOS_ITAU else 0
+            subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=sub_idx,
+                horizontal=True, key=f"{prefixo}_subtipo_itau")
 
         descricao = st.text_input("Descrição", value=d.get("descricao", ""), key=f"{prefixo}_desc")
         fc3, fc4 = st.columns(2)
@@ -819,12 +838,13 @@ elif pagina == "Lançamentos":
 
     # ── Filtros ───────────────────────────────────────────────────────────────
     st.markdown("#### Filtrar")
-    fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 1.5, 1.5, 1.5])
+    fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2, 2, 1.3, 1.3, 1.3, 1.3])
     filtro_cat = fc1.multiselect("Categoria", CATEGORIAS)
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"])
     filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
     filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER, key="lanc_filtro_subtipo")
-    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"])
+    filtro_subtipo_itau = fc5.multiselect("Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
+    filtro_ordem = fc6.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"])
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...")
 
     lanc = get_lancamentos(mes)
@@ -840,6 +860,8 @@ elif pagina == "Lançamentos":
             lanc = lanc[lanc["cartao"].isin(filtro_cartao)]
         if filtro_subtipo:
             lanc = lanc[(lanc["cartao"] != "Santander") | lanc["subtipo_cartao"].isin(filtro_subtipo)]
+        if filtro_subtipo_itau:
+            lanc = lanc[(lanc["cartao"] != "Itaú") | lanc["subtipo_cartao"].isin(filtro_subtipo_itau)]
         if busca:
             lanc = lanc[lanc["descricao"].str.contains(busca, case=False, na=False)]
 
@@ -858,20 +880,28 @@ elif pagina == "Lançamentos":
         for _, r in lanc_mes_full.iterrows():
             c = str(r["cartao"])
             sub = r.get("subtipo_cartao")
-            sub_s = "Físico" if (c == "Santander" and str(sub) == "Físico") else None
+            sub_str = str(sub) if sub and not pd.isna(sub) else None
+            if c == "Santander":
+                sub_s = "Físico" if sub_str == "Físico" else None
+            elif c == "Itaú":
+                sub_s = sub_str if sub_str in SUBTIPOS_ITAU else None
+            else:
+                sub_s = None
             chave = (c, sub_s)
             tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
         cores_banco = {
             "Itaú": "#FF6B00", "C6": "#000000",
             ("Santander", "Físico"): "#A80000", ("Santander", None): "#EC0000",
+            ("Itaú", "Visa"): CORES_BANDEIRA_ITAU["Visa"], ("Itaú", "Mastercard"): CORES_BANDEIRA_ITAU["Mastercard"],
         }
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
+        sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
             cor = cores_banco.get((c, sub_s), cores_banco.get(c, "#444"))
-            label_banco = f"{c} Físico" if sub_s == "Físico" else c
-            ativo = (c in filtro_cartao) and (sub_s != "Físico" or "Físico" in filtro_subtipo)
+            label_banco = f"{c} {sub_s}" if sub_s else c
+            ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             with cols_cards[i]:
                 st.markdown(f'<span class="card-anchor-{i}"></span>', unsafe_allow_html=True)
                 clicado = st.button(f"{label_banco}\nR$ {tot:,.2f}", key=f"cardbtn_cartao_{i}",
