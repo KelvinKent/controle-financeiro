@@ -1,16 +1,19 @@
 # 💰 Controle Financeiro
 
-Aplicativo web pessoal para controle de gastos, faturas, parcelamentos e divisão de despesas — substituindo a planilha `CONTAS.xlsx`. Construído em **Streamlit** com banco de dados em **Excel (.xlsx)**.
+Aplicativo web pessoal para controle de gastos, faturas, parcelamentos e divisão de despesas — substituindo a planilha `CONTAS.xlsx`. Construído em **Streamlit** com banco de dados em **Excel (.xlsx)** ou **Postgres/Supabase** (deploy).
+
+> 📄 Para um panorama completo do projeto (links, acessos, modelo de dados, decisões e
+> pendências), veja **[ESTADO_DO_PROJETO.md](ESTADO_DO_PROJETO.md)**.
 
 ## Funcionalidades
 
-- **Dashboard** — salários, total gasto, saldo, gastos por categoria, divisão 80/20, top 10 gastos, orçamento por categoria com alertas
+- **Dashboard** — salários editáveis; **painel-resumo réplica da planilha** (Cartão Kelvin/Thais, Pagamentos, Mãe, Água, Diferença, Gastos Thais, Investimentos); campos editáveis (Água-Boleto, lembretes YouTube/Spotify, CDB, Previdência); gastos por categoria; divisão 80/20; Top 10; orçamento com alertas
 - **Histórico** — evolução de gastos mês a mês, comparativos por categoria/cartão
-- **Lançamentos** — tabela estilo Excel com badges por banco, edição e exclusão
-- **Parcelamentos** — projeção automática de parcelas nos meses futuros
-- **Fixos** — despesas recorrentes aplicadas automaticamente a cada mês
+- **Lançamentos** — tabela estilo Excel com badges por banco; **checkbox "Conferido"** (linha fica verde); totais por cartão no topo; editar/excluir por linha; coluna Faltam (3,2,1,ÚLTIMA)
+- **Parcelamentos** — informa o valor total, app divide pelas parcelas; projeção automática nos meses futuros
+- **Fixos** — despesas recorrentes; editar/excluir/pausar por linha
 - **Importar** — upload de até 5 prints de fatura; a IA (Claude) reconhece banco, valores e parcelas, com deduplicação antes de salvar
-- **Configurações** — nomes, divisão, exportação Excel completa, backup automático
+- **Configurações** — nomes, divisão, **criar meses futuros (previsão ilimitada)**, exportação Excel completa, backup
 
 ---
 

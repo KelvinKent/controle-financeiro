@@ -340,9 +340,11 @@ if pagina == "Dashboard":
                 text=df_cat["Total (R$)"].apply(lambda v: f"R$ {v:,.0f}"),
                 color="Categoria", color_discrete_sequence=px.colors.qualitative.Set2)
             _ymax = float(df_cat["Total (R$)"].max() or 0)
-            fig.update_layout(showlegend=False, margin=dict(t=40, b=10), height=300,
-                              yaxis_range=[0, _ymax * 1.18])
-            fig.update_traces(textposition="outside", textfont_size=11, cliponaxis=False)
+            fig.update_layout(showlegend=False, margin=dict(t=60, b=10), height=340,
+                              yaxis_range=[0, _ymax * 1.30], uniformtext_minsize=9,
+                              uniformtext_mode="hide")
+            fig.update_traces(textposition="outside", textfont_size=10, cliponaxis=False,
+                              constraintext="none")
             st.plotly_chart(fig, use_container_width=True)
         with col_div:
             st.markdown(f"**{cfg.get('nome_kelvin','Kelvin')}** ({div_k}%)")
