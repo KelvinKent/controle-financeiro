@@ -5,6 +5,8 @@ __pycache__/
 
 # Segredos — NUNCA versionar
 .streamlit/secrets.toml
+ACESSOS_PRIVADO.md
+*.zip
 
 # Banco de dados local e backups (dados pessoais)
 data/financeiro.xlsx
