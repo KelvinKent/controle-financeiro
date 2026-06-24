@@ -85,6 +85,24 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Tema centralizado: classes reutilizadas pelos blocos de HTML do app ──────
+# (em vez de repetir os mesmos estilos inline em cada f-string)
+st.html("""
+<style>
+  .fc-box { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; margin-bottom:12px; }
+  .fc-hdr { background:#1a1a2e; color:#fff; padding:6px 12px; font-size:12px; font-weight:700;
+            text-align:center; text-transform:uppercase; letter-spacing:.5px; }
+  .fc-card-label { font-size:13px; color:#aaa; margin-bottom:4px; }
+  .fc-card-value { font-size:1.4rem; font-weight:700; }
+  .fc-hero { border-left:4px solid #21c354; border-radius:10px; background:rgba(255,255,255,0.04);
+             padding:18px 22px; margin-bottom:18px; }
+  .fc-hero.is-negative { border-left-color:#ff5b5b; }
+  .fc-hero-label { font-size:13px; color:#aaa; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+  .fc-hero-value { font-size:2.4rem; font-weight:800; line-height:1.1; }
+  .fc-hero-nota { font-size:13px; margin-top:6px; }
+</style>
+""")
+
 
 def _check_password() -> bool:
     """Gate de autenticação. Ativo apenas quando APP_PASSWORD está definida
@@ -214,14 +232,10 @@ if pagina == "Dashboard":
                 f'<td style="padding:6px 12px;font-size:13px;font-weight:{w}">{label}</td>'
                 f'<td style="padding:6px 12px;text-align:right;font-size:13px;font-weight:{w};color:{cor};white-space:nowrap">{_br(valor)}</td></tr>')
 
-    hdr = ('background:#1a1a2e;color:#fff;padding:6px 12px;font-size:12px;font-weight:700;'
-           'text-align:center;text-transform:uppercase;letter-spacing:.5px')
-    box = 'border:1px solid rgba(255,255,255,0.12);border-radius:8px;overflow:hidden;margin-bottom:12px'
-
     painel_html = f"""
     <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-      <div style="flex:1;min-width:280px;{box}">
-        <div style="{hdr}">{cfg.get('nome_kelvin','Kelvin')}</div>
+      <div class="fc-box" style="flex:1;min-width:280px">
+        <div class="fc-hdr">{cfg.get('nome_kelvin','Kelvin')}</div>
         <table style="width:100%;border-collapse:collapse">
           <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
             <td style="padding:6px 12px;background:#2f6fd1;color:#fff;font-size:13px;font-weight:600">Salário</td>
@@ -231,8 +245,8 @@ if pagina == "Dashboard":
             <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_kelvin'])}</td></tr>
         </table>
       </div>
-      <div style="flex:1;min-width:280px;{box}">
-        <div style="{hdr}">{cfg.get('nome_thais','Thais')}</div>
+      <div class="fc-box" style="flex:1;min-width:280px">
+        <div class="fc-hdr">{cfg.get('nome_thais','Thais')}</div>
         <table style="width:100%;border-collapse:collapse">
           <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
             <td style="padding:6px 12px;background:#1e9e5a;color:#fff;font-size:13px;font-weight:600">Salário</td>
@@ -245,8 +259,8 @@ if pagina == "Dashboard":
     </div>
 
     <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-      <div style="flex:1;min-width:280px;{box}">
-        <div style="{hdr}">Gastos + Pix</div>
+      <div class="fc-box" style="flex:1;min-width:280px">
+        <div class="fc-hdr">Gastos + Pix</div>
         <table style="width:100%;border-collapse:collapse">
           {_linha('Cartão ' + cfg.get('nome_kelvin','Kelvin'), pin['cartao_kelvin'])}
           {_linha('Cartão ' + cfg.get('nome_thais','Thais'), pin['cartao_thais'])}
@@ -256,8 +270,8 @@ if pagina == "Dashboard":
           {_linha('Total', pin['total_gastos'], bold=True, bg='rgba(255,255,255,0.05)')}
         </table>
       </div>
-      <div style="flex:1;min-width:280px;{box}">
-        <div style="{hdr}">Gastos {cfg.get('nome_thais','Thais')}</div>
+      <div class="fc-box" style="flex:1;min-width:280px">
+        <div class="fc-hdr">Gastos {cfg.get('nome_thais','Thais')}</div>
         <table style="width:100%;border-collapse:collapse">
           {_linha('Cartão', pin['thais_cartao'])}
           {_linha('Total', pin['thais_total'], bold=True, bg='rgba(255,255,255,0.05)')}
@@ -265,14 +279,14 @@ if pagina == "Dashboard":
       </div>
     </div>
 
-    <div style="font-family:inherit;{box}">
-      <div style="{hdr}">Lembretes — quem me paga</div>
+    <div class="fc-box" style="font-family:inherit">
+      <div class="fc-hdr">Lembretes — quem me paga</div>
       <div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin['youtube_lembrete'] or '—'}</div>
       <div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin['spotify_lembrete'] or '—'}</div>
     </div>
 
-    <div style="font-family:inherit;{box}">
-      <div style="{hdr}">Investimentos</div>
+    <div class="fc-box" style="font-family:inherit">
+      <div class="fc-hdr">Investimentos</div>
       <table style="width:100%;border-collapse:collapse">
         {_linha('CDB (Reserva)', pin['cdb_reserva'], neg_red=False)}
         {_linha('Previdência', pin['previdencia'], neg_red=False)}
@@ -308,17 +322,26 @@ if pagina == "Dashboard":
     def _card(label, value, nota=None, vermelho=False):
         cor = "#ff4b4b" if vermelho else "#21c354"
         nota_html = f'<div style="font-size:12px;color:{cor};margin-top:4px">{nota}</div>' if nota else ""
-        return (f'<div style="padding:6px 0">'
-                f'<div style="font-size:13px;color:#aaa;margin-bottom:4px">{label}</div>'
-                f'<div style="font-size:1.4rem;font-weight:700">{value}</div>'
-                f'{nota_html}</div>')
+        return (f'<div class="fc-card-label">{label}</div>'
+                f'<div class="fc-card-value">{value}</div>'
+                f'{nota_html}')
 
-    c1, c2, c3, c4 = st.columns(4)
+    # ── Saldo combinado em destaque (hero) ─────────────────────────────────────
+    neg_cls = "is-negative" if saldo < 0 else ""
+    st.html(f"""
+    <div class="fc-hero {neg_cls}">
+      <div class="fc-hero-label">Saldo combinado do mês</div>
+      <div class="fc-hero-value">R$ {saldo:,.0f}</div>
+      <div class="fc-hero-nota" style="color:{'#ff5b5b' if saldo < 0 else '#21c354'}">
+        {'⚠️ faltam' if saldo < 0 else '✅ sobram'} R$ {abs(saldo):,.0f} no mês
+      </div>
+    </div>
+    """)
+
+    c1, c2, c3 = st.columns(3)
     c1.html(_card(f"Salário {cfg.get('nome_kelvin','Kelvin')}", f"R$ {sal_k:,.0f}"))
     c2.html(_card(f"Salário {cfg.get('nome_thais','Thais')}", f"R$ {sal_t:,.0f}"))
     c3.html(_card("Total gasto", f"R$ {total:,.0f}"))
-    c4.html(_card("Saldo combinado", f"R$ {saldo:,.0f}",
-                   nota=f"{'↑ sobra' if saldo >= 0 else '↑ falta'}", vermelho=(saldo < 0)))
 
     st.divider()
 
@@ -631,6 +654,30 @@ elif pagina == "Histórico":
 # LANÇAMENTOS
 # ══════════════════════════════════════════════════════════════════════════════
 elif pagina == "Lançamentos":
+    # Resolve cliques nos cards de "Totais por cartão" ANTES de criar os widgets de
+    # filtro (a key de um widget não pode ser escrita depois de instanciado no mesmo run).
+    _toggle = st.session_state.pop("_toggle_cartao_request", None)
+    if _toggle is not None:
+        c_tog, sub_tog = _toggle
+        cartao_set = list(st.session_state.get("lanc_filtro_cartao", []))
+        subtipo_set = list(st.session_state.get("lanc_filtro_subtipo", []))
+        if sub_tog == "Físico":
+            if "Físico" in subtipo_set:
+                subtipo_set.remove("Físico")
+                if c_tog in cartao_set and "Regular" not in subtipo_set:
+                    cartao_set.remove(c_tog)
+            else:
+                subtipo_set.append("Físico")
+                if c_tog not in cartao_set:
+                    cartao_set.append(c_tog)
+        else:
+            if c_tog in cartao_set:
+                cartao_set.remove(c_tog)
+            else:
+                cartao_set.append(c_tog)
+        st.session_state["lanc_filtro_cartao"] = cartao_set
+        st.session_state["lanc_filtro_subtipo"] = subtipo_set
+
     col_title, col_fixos = st.columns([3, 1])
     col_title.title(f"Lançamentos — {mes_label}")
     with col_fixos:
@@ -775,8 +822,8 @@ elif pagina == "Lançamentos":
     fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     filtro_cat = fc1.multiselect("Categoria", CATEGORIAS)
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"])
-    filtro_cartao = fc3.multiselect("Cartão", CARTOES)
-    filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER)
+    filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
+    filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER, key="lanc_filtro_subtipo")
     filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"])
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...")
 
@@ -814,15 +861,32 @@ elif pagina == "Lançamentos":
             sub_s = "Físico" if (c == "Santander" and str(sub) == "Físico") else None
             chave = (c, sub_s)
             tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
-        cards_html = ""
-        for (c, sub_s), tot in sorted(tot_cartao.items(), key=lambda x: -x[1]):
-            b = badge_cartao(c, sub_s)
-            cards_html += (f'<div style="display:inline-flex;align-items:center;gap:8px;'
-                           f'background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);'
-                           f'border-radius:8px;padding:8px 12px;margin:0 8px 8px 0">'
-                           f'{b}<span style="font-size:15px;font-weight:700">R$ {tot:,.2f}</span></div>')
-        st.markdown("##### Totais por cartão no mês")
-        st.html(f'<div style="display:flex;flex-wrap:wrap">{cards_html}</div>')
+        st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
+        cores_banco = {
+            "Itaú": "#FF6B00", "C6": "#000000",
+            ("Santander", "Físico"): "#A80000", ("Santander", None): "#EC0000",
+        }
+        cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
+        cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
+        for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
+            cor = cores_banco.get((c, sub_s), cores_banco.get(c, "#444"))
+            label_banco = f"{c} Físico" if sub_s == "Físico" else c
+            ativo = (c in filtro_cartao) and (sub_s != "Físico" or "Físico" in filtro_subtipo)
+            with cols_cards[i]:
+                st.markdown(f'<span class="card-anchor-{i}"></span>', unsafe_allow_html=True)
+                clicado = st.button(f"{label_banco}\nR$ {tot:,.2f}", key=f"cardbtn_cartao_{i}",
+                                     use_container_width=True)
+                anel = "0 0 0 2px #fff inset" if ativo else "none"
+                st.markdown(f"""<style>
+                    span.card-anchor-{i} + div button {{
+                        background:{cor} !important; color:#fff !important; border:none !important;
+                        box-shadow:{anel}; font-weight:700 !important; white-space:pre-line !important;
+                        line-height:1.3 !important;
+                    }}
+                </style>""", unsafe_allow_html=True)
+            if clicado:
+                st.session_state["_toggle_cartao_request"] = (c, sub_s)
+                st.rerun()
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
 
