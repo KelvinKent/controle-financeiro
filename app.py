@@ -183,7 +183,12 @@ with st.sidebar:
     escolha = st.selectbox("Mês", options=labels, index=idx)
     st.session_state.mes_selecionado = meses_disponiveis[labels.index(escolha)]
     st.divider()
-    pagina = st.radio("Navegação", ["Dashboard", "Histórico", "Lançamentos", "Parcelamentos", "Fixos", "Importar", "Configurações"], label_visibility="collapsed")
+    # Redirecionamento programático (ex.: após importar um "Fixo novo") precisa ser
+    # resolvido ANTES do radio ser instanciado — não dá pra escrever na key depois.
+    _redirect = st.session_state.pop("_nav_redirect", None)
+    if _redirect:
+        st.session_state["nav_pagina"] = _redirect
+    pagina = st.radio("Navegação", ["Dashboard", "Histórico", "Lançamentos", "Parcelamentos", "Fixos", "Importar", "Configurações"], label_visibility="collapsed", key="nav_pagina")
     if st.session_state.get("_autenticado"):
         st.divider()
         if st.button("🚪 Sair", use_container_width=True):
@@ -1459,8 +1464,32 @@ Regras:
         subtipo_det = dados.get("subtipo") or None
 
         st.divider()
-        badge_det = badge_cartao(banco_det, subtipo_det)
-        st.html(f'<div style="font-size:14px;margin-bottom:8px">Banco detectado: {badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
+
+        # Reseta a seleção de banco/bandeira só quando chega um novo lote da IA
+        if st.session_state.get("imp_banco_src") != id(lancamentos_ia):
+            st.session_state["imp_banco_sel"] = banco_det if banco_det in CARTOES else "Santander"
+            if banco_det == "Santander":
+                st.session_state["imp_subtipo_santander"] = subtipo_det or "Regular"
+            elif banco_det == "Itaú":
+                st.session_state["imp_subtipo_itau"] = subtipo_det or "Visa"
+            st.session_state["imp_banco_src"] = id(lancamentos_ia)
+
+        st.markdown("**Banco detectado** — corrija aqui se a IA identificou errado:")
+        cb1, cb2 = st.columns(2)
+        banco_sel = cb1.selectbox("Cartão", CARTOES, key="imp_banco_sel")
+        subtipo_sel = None
+        if banco_sel == "Santander":
+            sa_atual = st.session_state.get("imp_subtipo_santander") or "Regular"
+            sa_idx = SUBTIPOS_SANTANDER.index(sa_atual) if sa_atual in SUBTIPOS_SANTANDER else 0
+            subtipo_sel = cb2.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=sa_idx,
+                                     horizontal=True, key="imp_subtipo_santander")
+        elif banco_sel == "Itaú":
+            it_atual = st.session_state.get("imp_subtipo_itau") or "Visa"
+            it_idx = SUBTIPOS_ITAU.index(it_atual) if it_atual in SUBTIPOS_ITAU else 0
+            subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=it_idx,
+                                     horizontal=True, key="imp_subtipo_itau")
+        badge_det = badge_cartao(banco_sel, subtipo_sel)
+        st.html(f'<div style="font-size:14px;margin:4px 0 8px">{badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
 
         # Carrega lançamentos existentes para deduplicação
         from difflib import SequenceMatcher
@@ -1489,21 +1518,24 @@ Regras:
             rows_init = []
             for l in lancamentos_ia:
                 is_dup, motivo = _dup_check(l["descricao"], float(l["valor"]))
-                rows_init.append({**l, "_ativo": not is_dup, "_dup": is_dup, "_dup_motivo": motivo})
+                rows_init.append({**l, "_ativo": not is_dup, "_dup": is_dup, "_dup_motivo": motivo,
+                                   "_fixo": False, "_valor_thais": 0.0})
             st.session_state["imp_rows"] = rows_init
             st.session_state["imp_rows_src"] = id(lancamentos_ia)
 
         rows = st.session_state["imp_rows"]
 
         # Cabeçalho
-        hc = st.columns([0.4, 2.5, 1.5, 0.8, 0.8, 0.8, 1.5])
-        for col, label in zip(hc, ["✓", "Descrição", "Categoria", "Valor", "Parc.", "Total", "Tipo"]):
+        col_widths = [0.4, 2.1, 1.2, 0.6, 0.8, 1.0, 0.6, 0.6, 1.1]
+        col_labels = ["✓", "Descrição", "Categoria", "Fixo", "Valor", "Thais paga (R$)", "Parc.", "Total", "Tipo"]
+        hc = st.columns(col_widths)
+        for col, label in zip(hc, col_labels):
             col.markdown(f"<small style='color:#666;text-transform:uppercase;letter-spacing:.5px;font-size:11px'>{label}</small>", unsafe_allow_html=True)
 
         st.divider()
         for i, row in enumerate(rows):
             is_dup = row.get("_dup", False)
-            rc = st.columns([0.4, 2.5, 1.5, 0.8, 0.8, 0.8, 1.5])
+            rc = st.columns(col_widths)
             row["_ativo"] = rc[0].checkbox("", value=row["_ativo"], key=f"imp_ck_{i}", label_visibility="collapsed")
             dup_tip = f"⚠️ Possível duplicata: {row.get('_dup_motivo','já existe')}" if is_dup else ""
             row["descricao"] = rc[1].text_input("", value=row["descricao"], key=f"imp_desc_{i}",
@@ -1511,20 +1543,28 @@ Regras:
             cats_idx = CATEGORIAS.index(row["categoria_sugerida"]) if row.get("categoria_sugerida") in CATEGORIAS else 0
             row["categoria_sugerida"] = rc[2].selectbox("", CATEGORIAS, index=cats_idx,
                                                           key=f"imp_cat_{i}", label_visibility="collapsed")
-            row["valor"] = rc[3].number_input("", value=float(row["valor"]), min_value=0.0,
+            row["_fixo"] = rc[3].checkbox("Fixo", value=row.get("_fixo", False), key=f"imp_fixo_{i}",
+                                           label_visibility="collapsed",
+                                           help="Marcar se é um gasto fixo novo (recorrente todo mês). "
+                                                "Vai também para a tela Fixos depois de importar.")
+            row["valor"] = rc[4].number_input("", value=float(row["valor"]), min_value=0.0,
                                                step=0.01, format="%.2f", key=f"imp_val_{i}",
                                                label_visibility="collapsed")
-            row["parcela_atual"] = rc[4].number_input("", value=int(row.get("parcela_atual", 1)),
+            row["_valor_thais"] = rc[5].number_input("", value=float(row.get("_valor_thais") or 0.0),
+                                                       min_value=0.0, step=0.01, format="%.2f",
+                                                       key=f"imp_valthais_{i}", label_visibility="collapsed",
+                                                       help="Quanto a Thais (ou outra pessoa) vai pagar deste item, se aplicável.")
+            row["parcela_atual"] = rc[6].number_input("", value=int(row.get("parcela_atual", 1)),
                                                         min_value=1, step=1, key=f"imp_parc_{i}",
                                                         label_visibility="collapsed")
-            row["total_parcelas"] = rc[5].number_input("", value=int(row.get("total_parcelas", 1)),
+            row["total_parcelas"] = rc[7].number_input("", value=int(row.get("total_parcelas", 1)),
                                                          min_value=1, step=1, key=f"imp_tot_{i}",
                                                          label_visibility="collapsed")
             tot = int(row["total_parcelas"])
             parc = int(row["parcela_atual"])
             restantes = tot - parc + 1
-            tipo = "FIXO" if tot > 90 else ("ULTIMA" if restantes == 1 else ("única" if tot == 1 else "parcelado"))
-            rc[6].markdown(f"`{tipo}`" + (" ⚠️ dup" if is_dup else ""), unsafe_allow_html=True)
+            tipo = "FIXO" if (row["_fixo"] or tot > 90) else ("ULTIMA" if restantes == 1 else ("única" if tot == 1 else "parcelado"))
+            rc[8].markdown(f"`{tipo}`" + (" ⚠️ dup" if is_dup else ""), unsafe_allow_html=True)
 
         n_ativos = sum(1 for r in rows if r["_ativo"])
         n_dup = sum(1 for r in rows if r["_dup"] and r["_ativo"])
@@ -1535,16 +1575,22 @@ Regras:
 
         if si2.button("💾 Importar selecionados", use_container_width=True, type="primary", disabled=n_ativos == 0):
             mes_dest = st.session_state.get("imp_mes", mes_imp)
-            banco_final = banco_det
-            subtipo_final = subtipo_det
+            banco_final = banco_sel
+            subtipo_final = subtipo_sel
             importados = 0
+            fixos_criados = 0
             for row in rows:
                 if not row["_ativo"]:
                     continue
                 tot = int(row["total_parcelas"])
                 parc = int(row["parcela_atual"])
                 restantes = tot - parc + 1
-                tipo = "FIXO" if tot > 90 else ("ULTIMA" if restantes == 1 else ("única" if tot == 1 else "parcelado"))
+                is_fixo = bool(row.get("_fixo"))
+                tipo = "FIXO" if (is_fixo or tot > 90) else ("ULTIMA" if restantes == 1 else ("única" if tot == 1 else "parcelado"))
+
+                val_thais = float(row.get("_valor_thais") or 0.0)
+                pessoa_thais = "Thais" if val_thais > 0 else None
+                valor_thais = val_thais if val_thais > 0 else None
 
                 if tipo == "parcelado" and restantes > 1:
                     # Cria grupo de parcelamento a partir do mês destino
@@ -1556,6 +1602,8 @@ Regras:
                         valor_parcela=float(row["valor"]),
                         total_parcelas=restantes,
                         mes_inicio=mes_dest,
+                        pessoa_thais=pessoa_thais,
+                        valor_thais=valor_thais,
                     )
                 else:
                     add_lancamento(
@@ -1569,12 +1617,33 @@ Regras:
                         parcela_atual=parc,
                         total_parcelas=restantes,
                         subtipo_cartao=subtipo_final,
+                        pessoa_thais=pessoa_thais,
+                        valor_thais=valor_thais,
                     )
                 importados += 1
 
+                if is_fixo:
+                    df_fixos = load_sheet("fixos")
+                    novo_id = int(df_fixos["id"].max() + 1) if not df_fixos.empty else 1
+                    novo_fixo = {
+                        "id": novo_id, "cartao": banco_final, "subtipo_cartao": subtipo_final,
+                        "descricao": row["descricao"], "categoria": row["categoria_sugerida"],
+                        "valor_estimado": float(row["valor"]),
+                        "pessoa_thais": pessoa_thais, "valor_thais": valor_thais,
+                        "ativo": True,
+                    }
+                    df_fixos = pd.concat([df_fixos, pd.DataFrame([novo_fixo])], ignore_index=True)
+                    save_sheet("fixos", df_fixos)
+                    fixos_criados += 1
+
             del st.session_state["imp_dados"]
             del st.session_state["imp_rows"]
-            st.success(f"✅ {importados} lançamento(s) importado(s) para {MES_LABELS.get(mes_dest, mes_dest)}!")
+            if fixos_criados:
+                st.session_state["_nav_redirect"] = "Fixos"
+                st.success(f"✅ {importados} lançamento(s) importado(s) — {fixos_criados} novo(s) fixo(s) "
+                           f"cadastrado(s). Indo para a tela Fixos…")
+            else:
+                st.success(f"✅ {importados} lançamento(s) importado(s) para {MES_LABELS.get(mes_dest, mes_dest)}!")
             st.rerun()
 
 # ══════════════════════════════════════════════════════════════════════════════
