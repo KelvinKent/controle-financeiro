@@ -15,7 +15,8 @@ from modules.db import (
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
     fazer_backup, listar_backups, update_fixo, delete_fixo,
-    get_painel, set_painel, calcular_painel, add_lancamentos_bulk,
+    get_painel, set_painel, calcular_painel, add_lancamentos_bulk, set_mes_fechado,
+    get_meses_fechados,
 )
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -81,10 +82,15 @@ def _fmt_desc(desc) -> str:
     return s
 
 
-def _mes_padrao(meses: list) -> str:
-    hoje = date.today()
-    prox = f"{hoje.year+1}-01" if hoje.month == 12 else f"{hoje.year}-{hoje.month+1:02d}"
-    return prox if prox in meses else (meses[0] if meses else "2026-07")
+def _mes_padrao(meses: list, fechados: set = frozenset()) -> str:
+    """Primeiro mês (cronológico) ainda não fechado. Se todos estiverem fechados
+    (ou não houver dados de fechamento), cai no mês mais recente."""
+    if not meses:
+        return "2026-07"
+    for m in sorted(meses):
+        if m not in fechados:
+            return m
+    return sorted(meses)[-1]
 
 
 st.set_page_config(
@@ -173,7 +179,7 @@ if db_exists() and not st.session_state.get("_backup_feito"):
     st.session_state["_backup_feito"] = True
 
 if "mes_selecionado" not in st.session_state:
-    st.session_state.mes_selecionado = _mes_padrao(meses_disponiveis)
+    st.session_state.mes_selecionado = _mes_padrao(meses_disponiveis, get_meses_fechados())
 
 with st.sidebar:
     st.markdown("### 💰 Controle Financeiro")
@@ -204,11 +210,30 @@ cfg = get_config()
 # DASHBOARD
 # ══════════════════════════════════════════════════════════════════════════════
 if pagina == "Dashboard":
-    st.title(f"Dashboard — {mes_label}")
-
     dados_mes = get_mes(mes)
     sal_k = float(dados_mes.get("salario_kelvin") or 15500)
     sal_t = float(dados_mes.get("salario_thais") or 6000)
+    mes_fechado = bool(dados_mes.get("fechado")) if not pd.isna(dados_mes.get("fechado")) else False
+
+    col_title, col_fechar = st.columns([3, 1])
+    col_title.title(f"Dashboard — {mes_label}")
+    with col_fechar:
+        st.write("")
+        if mes_fechado:
+            st.success("🔒 Mês fechado")
+            if st.button("🔓 Reabrir mês", use_container_width=True,
+                         help="Volta a marcar este mês como em aberto."):
+                set_mes_fechado(mes, False)
+                st.rerun()
+        else:
+            if st.button("🔒 Fechar mês", use_container_width=True, type="primary",
+                         help="Marca este mês como pago. Na próxima vez, o app já abre direto no mês seguinte."):
+                set_mes_fechado(mes, True)
+                meses_seguintes = [m for m in meses_disponiveis if m > mes]
+                if meses_seguintes:
+                    st.session_state.mes_selecionado = sorted(meses_seguintes)[0]
+                st.success(f"{mes_label} fechado!")
+                st.rerun()
 
     st.markdown("#### Salários do mês")
     col1, col2, col3 = st.columns([1, 1, 2])

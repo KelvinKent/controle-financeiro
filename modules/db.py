@@ -162,6 +162,14 @@ def get_meses() -> list[str]:
     return sorted(df["mes_ano"].tolist())
 
 
+def get_meses_fechados() -> set:
+    """Conjunto de mes_ano marcados como fechados (já pagos)."""
+    df = load_sheet("meses")
+    if df.empty or "fechado" not in df.columns:
+        return set()
+    return set(df.loc[df["fechado"] == True, "mes_ano"].tolist())
+
+
 def get_mes(mes_ano: str) -> dict:
     df = load_sheet("meses")
     row = df[df["mes_ano"] == mes_ano]
@@ -170,15 +178,30 @@ def get_mes(mes_ano: str) -> dict:
     return row.iloc[0].to_dict()
 
 
-def upsert_mes(mes_ano: str, salario_kelvin: float, salario_thais: float, fechado: bool = False):
+def upsert_mes(mes_ano: str, salario_kelvin: float, salario_thais: float, fechado: bool = None):
+    """Atualiza salários do mês. `fechado` só é alterado se informado explicitamente —
+    None preserva o status atual (evita reabrir o mês ao salvar só os salários)."""
     df = load_sheet("meses")
     if mes_ano in df["mes_ano"].values:
         df.loc[df["mes_ano"] == mes_ano, "salario_kelvin"] = salario_kelvin
         df.loc[df["mes_ano"] == mes_ano, "salario_thais"] = salario_thais
-        df.loc[df["mes_ano"] == mes_ano, "fechado"] = fechado
+        if fechado is not None:
+            df.loc[df["mes_ano"] == mes_ano, "fechado"] = fechado
     else:
         novo = pd.DataFrame([{"mes_ano": mes_ano, "salario_kelvin": salario_kelvin,
-                               "salario_thais": salario_thais, "fechado": fechado}])
+                               "salario_thais": salario_thais, "fechado": bool(fechado)}])
+        df = pd.concat([df, novo], ignore_index=True)
+    save_sheet("meses", df)
+
+
+def set_mes_fechado(mes_ano: str, fechado: bool):
+    """Marca/desmarca um mês como fechado (já pago), sem tocar nos salários."""
+    df = load_sheet("meses")
+    if mes_ano in df["mes_ano"].values:
+        df.loc[df["mes_ano"] == mes_ano, "fechado"] = fechado
+    else:
+        novo = pd.DataFrame([{"mes_ano": mes_ano, "salario_kelvin": 0.0,
+                               "salario_thais": 0.0, "fechado": fechado}])
         df = pd.concat([df, novo], ignore_index=True)
     save_sheet("meses", df)
 
