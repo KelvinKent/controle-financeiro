@@ -713,8 +713,9 @@ elif pagina == "Lançamentos":
         cartao_atual = d.get("cartao", "Santander")
         cartao_idx = CARTOES.index(cartao_atual) if cartao_atual in CARTOES else 0
         cartao = fc1.selectbox("Cartão", CARTOES, index=cartao_idx, key=f"{prefixo}_cartao")
-        valor = fc2.number_input("Valor total (R$)", min_value=0.01, step=0.01, format="%.2f",
-            value=float(d.get("valor") or 0.01), key=f"{prefixo}_valor")
+        valor = fc2.number_input("Valor total (R$)", step=0.01, format="%.2f",
+            value=float(d.get("valor") or 0.01), key=f"{prefixo}_valor",
+            help="Negativo = crédito (aparece em verde na tabela)")
 
         subtipo = None
         if cartao == "Santander":
@@ -768,7 +769,7 @@ elif pagina == "Lançamentos":
                 if pd.isna(vp_default):
                     vp_default = 0.0
 
-            val_pessoa = col_p2.number_input("Valor (R$)", min_value=0.0, step=0.01,
+            val_pessoa = col_p2.number_input("Valor (R$)", step=0.01,
                 format="%.2f", value=vp_default, key=val_key)
 
         total_parc = None
