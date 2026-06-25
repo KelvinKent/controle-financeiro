@@ -1516,6 +1516,11 @@ Regras:
         badge_det = badge_cartao(banco_sel, subtipo_sel)
         st.html(f'<div style="font-size:14px;margin:4px 0 8px">{badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
 
+        pessoa_imp = st.text_input("Pessoa (quem paga a parte preenchida em \"Thais paga\")",
+                                    value=st.session_state.get("imp_pessoa") or "Thais", key="imp_pessoa",
+                                    help="Padrão Thais, mas pode trocar por outra pessoa (ex.: Mãe) "
+                                         "— vale para todos os itens com valor preenchido na coluna abaixo.")
+
         # Carrega lançamentos existentes para deduplicação
         from difflib import SequenceMatcher
         lanc_existentes = get_lancamentos(st.session_state.get("imp_mes", mes_imp))
@@ -1552,7 +1557,8 @@ Regras:
 
         # Cabeçalho
         col_widths = [0.4, 2.1, 1.2, 0.6, 0.8, 1.0, 0.6, 0.6, 1.1]
-        col_labels = ["✓", "Descrição", "Categoria", "Fixo", "Valor", "Thais paga (R$)", "Parc.", "Total", "Tipo"]
+        _nome_pessoa_imp = pessoa_imp.strip() or "Thais"
+        col_labels = ["✓", "Descrição", "Categoria", "Fixo", "Valor", f"{_nome_pessoa_imp} paga (R$)", "Parc.", "Total", "Tipo"]
         hc = st.columns(col_widths)
         for col, label in zip(hc, col_labels):
             col.markdown(f"<small style='color:#666;text-transform:uppercase;letter-spacing:.5px;font-size:11px'>{label}</small>", unsafe_allow_html=True)
@@ -1614,7 +1620,7 @@ Regras:
                 tipo = "FIXO" if (is_fixo or tot > 90) else ("ULTIMA" if restantes == 1 else ("única" if tot == 1 else "parcelado"))
 
                 val_thais = float(row.get("_valor_thais") or 0.0)
-                pessoa_thais = "Thais" if val_thais > 0 else None
+                pessoa_thais = pessoa_imp if (val_thais > 0 and pessoa_imp.strip()) else None
                 valor_thais = val_thais if val_thais > 0 else None
 
                 if tipo == "parcelado" and restantes > 1:
