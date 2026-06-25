@@ -806,8 +806,10 @@ elif pagina == "Lançamentos":
         mes_inicio_parc = mes
         if tipo == "parcelado":
             pp1, pp2 = st.columns(2)
-            total_parc = pp1.number_input("Total de parcelas", min_value=2, max_value=48,
-                value=int(d.get("total_parcelas") or 2), step=1, key=f"{prefixo}_parc")
+            total_parc = pp1.number_input("Total de parcelas", min_value=1, max_value=48,
+                value=int(d.get("total_parcelas") or 2), step=1, key=f"{prefixo}_parc",
+                help="Ao editar um lançamento já existente, este número é o de parcelas "
+                     "restantes (pode ser 1 na última parcela).")
             meses_disp = get_meses()
             idx_mes = meses_disp.index(mes) if mes in meses_disp else 0
             labels_m = [MES_LABELS.get(m, m) for m in meses_disp]
