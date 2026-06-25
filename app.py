@@ -1000,30 +1000,33 @@ elif pagina == "Lançamentos":
         n_conf = int(lanc["conferido"].fillna(False).astype(bool).sum()) if "conferido" in lanc.columns else 0
         st.caption(f"✅ {n_conf} de {len(lanc)} lançamentos conferidos.")
 
-        # ── Formulário de edição (abre abaixo ao clicar em ✏️) ────────────────
+        # ── Formulário de edição (popup, não precisa rolar a página) ─────────
+        @st.dialog("✏️ Editar lançamento")
+        def _dialog_editar(lid_ed, descricao_ed, dados_ed):
+            st.caption(descricao_ed)
+            edit_ver = st.session_state.get(f"edit_ver_{lid_ed}", 0)
+            campos_ed = form_lancamento(f"edit_{lid_ed}_{edit_ver}", dados=dados_ed)
+            ce1, ce2 = st.columns(2)
+            if ce1.button("💾 Salvar alterações", use_container_width=True, key="btn_salvar_ed"):
+                update_lancamento(lid_ed,
+                    cartao=campos_ed["cartao"], valor=campos_ed["valor"],
+                    descricao=campos_ed["descricao"], categoria=campos_ed["categoria"],
+                    tipo_parcela=campos_ed["tipo"],
+                    pessoa_thais=campos_ed["pessoa"], valor_thais=campos_ed["val_pessoa"],
+                    total_parcelas=campos_ed["total_parc"],
+                    subtipo_cartao=campos_ed["subtipo"],
+                )
+                st.session_state.editando_id = None
+                st.rerun()
+            if ce2.button("✕ Cancelar", use_container_width=True, key="btn_cancel_ed"):
+                st.session_state.editando_id = None
+                st.rerun()
+
         if st.session_state.editando_id:
             row_ed = lanc[lanc["id"] == st.session_state.editando_id]
             if not row_ed.empty:
                 row_ed = row_ed.iloc[0]
-                st.divider()
-                st.markdown(f"##### ✏️ Editando: *{row_ed['descricao']}*")
-                edit_ver = st.session_state.get(f"edit_ver_{st.session_state.editando_id}", 0)
-                campos_ed = form_lancamento(f"edit_{st.session_state.editando_id}_{edit_ver}", dados=row_ed.to_dict())
-                ce1, ce2 = st.columns(2)
-                if ce1.button("💾 Salvar alterações", use_container_width=True, key="btn_salvar_ed"):
-                    update_lancamento(st.session_state.editando_id,
-                        cartao=campos_ed["cartao"], valor=campos_ed["valor"],
-                        descricao=campos_ed["descricao"], categoria=campos_ed["categoria"],
-                        tipo_parcela=campos_ed["tipo"],
-                        pessoa_thais=campos_ed["pessoa"], valor_thais=campos_ed["val_pessoa"],
-                        total_parcelas=campos_ed["total_parc"],
-                        subtipo_cartao=campos_ed["subtipo"],
-                    )
-                    st.session_state.editando_id = None
-                    st.rerun()
-                if ce2.button("✕ Cancelar", use_container_width=True, key="btn_cancel_ed"):
-                    st.session_state.editando_id = None
-                    st.rerun()
+                _dialog_editar(st.session_state.editando_id, f"*{row_ed['descricao']}*", row_ed.to_dict())
             else:
                 st.session_state.editando_id = None
 
