@@ -16,7 +16,7 @@ from modules.db import (
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
     fazer_backup, listar_backups, update_fixo, delete_fixo,
     get_painel, set_painel, calcular_painel, add_lancamentos_bulk, set_mes_fechado,
-    get_meses_fechados,
+    get_meses_fechados, propagar_parcela_grupo,
 )
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -739,6 +739,14 @@ elif pagina == "Lançamentos":
     def form_lancamento(prefixo, dados=None):
         """Renderiza campos do formulário. Funciona fora de st.form para reatividade."""
         d = dados or {}
+        # Editando uma parcela que já faz parte de um parcelamento em andamento (tem
+        # id_grupo) — nesse caso "Valor total" é o valor DESTA parcela, não da compra
+        # inteira (diferente do fluxo de criação, que sempre divide pelo nº de parcelas).
+        ja_era_parcela_existente = (
+            dados is not None
+            and d.get("tipo_parcela") in ("parcelado", "ULTIMA")
+            and d.get("id_grupo") and not pd.isna(d.get("id_grupo"))
+        )
         fc1, fc2 = st.columns(2)
         cartao_atual = d.get("cartao", "Santander")
         cartao_idx = CARTOES.index(cartao_atual) if cartao_atual in CARTOES else 0
@@ -792,33 +800,42 @@ elif pagina == "Lançamentos":
                 if curr_val is None or curr_val == prev_auto:
                     st.session_state[val_key] = new_auto
                 st.session_state[auto_key] = new_auto
-                vp_default = st.session_state.get(val_key, new_auto)
             else:
                 st.session_state.pop(auto_key, None)
-                vp_default = float(d.get("valor_thais") or 0.0)
-                if pd.isna(vp_default):
-                    vp_default = 0.0
+                if val_key not in st.session_state:
+                    vp_default = float(d.get("valor_thais") or 0.0)
+                    st.session_state[val_key] = 0.0 if pd.isna(vp_default) else vp_default
 
+            # Sem `value=`: a key já garante o valor inicial acima, e passar os dois juntos
+            # gera o aviso do Streamlit "created with a default value but also had its value
+            # set via the Session State API".
             val_pessoa = col_p2.number_input("Valor (R$)", step=0.01,
-                format="%.2f", value=vp_default, key=val_key)
+                format="%.2f", key=val_key)
 
         total_parc = None
         mes_inicio_parc = mes
         if tipo == "parcelado":
-            pp1, pp2 = st.columns(2)
-            total_parc = pp1.number_input("Total de parcelas", min_value=1, max_value=48,
-                value=int(d.get("total_parcelas") or 2), step=1, key=f"{prefixo}_parc",
-                help="Ao editar um lançamento já existente, este número é o de parcelas "
-                     "restantes (pode ser 1 na última parcela).")
-            meses_disp = get_meses()
-            idx_mes = meses_disp.index(mes) if mes in meses_disp else 0
-            labels_m = [MES_LABELS.get(m, m) for m in meses_disp]
-            escolha_m = pp2.selectbox("Mês da 1ª parcela", labels_m, index=idx_mes, key=f"{prefixo}_mesinicio")
-            mes_inicio_parc = meses_disp[labels_m.index(escolha_m)]
-            if total_parc:
-                vparc = valor / int(total_parc)
-                st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
-                           f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
+            if ja_era_parcela_existente:
+                total_parc = st.number_input("Total de parcelas (faltam após esta)", min_value=1,
+                    max_value=48, value=int(d.get("total_parcelas") or 1), step=1,
+                    key=f"{prefixo}_parc",
+                    help="Parcelas restantes depois desta (ex.: 4 = mais 4 parcelas após esta).")
+                st.caption("✏️ Editando uma parcela já existente — o **valor acima é o valor "
+                           "desta parcela** (não da compra inteira). Ao salvar, atualiza também "
+                           "as próximas parcelas deste mesmo parcelamento.")
+            else:
+                pp1, pp2 = st.columns(2)
+                total_parc = pp1.number_input("Total de parcelas", min_value=1, max_value=48,
+                    value=int(d.get("total_parcelas") or 2), step=1, key=f"{prefixo}_parc")
+                meses_disp = get_meses()
+                idx_mes = meses_disp.index(mes) if mes in meses_disp else 0
+                labels_m = [MES_LABELS.get(m, m) for m in meses_disp]
+                escolha_m = pp2.selectbox("Mês da 1ª parcela", labels_m, index=idx_mes, key=f"{prefixo}_mesinicio")
+                mes_inicio_parc = meses_disp[labels_m.index(escolha_m)]
+                if total_parc:
+                    vparc = valor / int(total_parc)
+                    st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
+                               f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
 
         return {
             "cartao": cartao, "subtipo": subtipo, "valor": valor, "descricao": descricao,
@@ -827,6 +844,7 @@ elif pagina == "Lançamentos":
             "val_pessoa": val_pessoa if dividir and val_pessoa else None,
             "total_parc": total_parc,
             "mes_inicio_parc": mes_inicio_parc,
+            "propagar_grupo": ja_era_parcela_existente,
         }
 
     def salvar_campos(campos):
@@ -1049,6 +1067,15 @@ elif pagina == "Lançamentos":
                     total_parcelas=campos_ed["total_parc"],
                     subtipo_cartao=campos_ed["subtipo"],
                 )
+                id_grupo = dados_ed.get("id_grupo")
+                if campos_ed.get("propagar_grupo") and id_grupo and not pd.isna(id_grupo):
+                    n_prop = propagar_parcela_grupo(
+                        int(id_grupo), dados_ed.get("mes_ano"),
+                        valor=campos_ed["valor"], categoria=campos_ed["categoria"],
+                        pessoa_thais=campos_ed["pessoa"], valor_thais=campos_ed["val_pessoa"],
+                    )
+                    if n_prop > 1:
+                        st.toast(f"Valor atualizado também nas próximas {n_prop - 1} parcela(s) deste parcelamento.")
                 st.session_state.editando_id = None
                 st.rerun()
             if ce2.button("✕ Cancelar", use_container_width=True, key="btn_cancel_ed"):

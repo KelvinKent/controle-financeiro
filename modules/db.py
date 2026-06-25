@@ -462,6 +462,47 @@ def update_lancamento(lancamento_id: int, **campos):
     save_sheet("lancamentos", df)
 
 
+def propagar_parcela_grupo(id_grupo: int, mes_ano_de: str, **campos) -> int:
+    """Aplica os mesmos campos (valor, valor_thais, pessoa_thais, categoria...) às demais
+    parcelas (parcelado/ULTIMA) do grupo a partir de `mes_ano_de` (inclusive) — usado ao
+    corrigir o valor de uma parcela já lançada, propagando para os meses seguintes.
+    Também atualiza o registro do grupo (grupos_parcelamento) para refletir o novo valor."""
+    df = load_sheet("lancamentos")
+    if df.empty:
+        return 0
+    mask = ((df["id_grupo"] == id_grupo) & (df["mes_ano"] >= mes_ano_de)
+            & (df["tipo_parcela"].isin(["parcelado", "ULTIMA"])))
+    n = int(mask.sum())
+    if n == 0:
+        return 0
+    if USE_POSTGRES:
+        from sqlalchemy import text
+        sets = ", ".join(f'"{c}" = :{c}' for c in campos)
+        params = {**campos, "_grupo": int(id_grupo), "_mes": mes_ano_de}
+        with _engine.begin() as conn:
+            conn.execute(text(
+                f'UPDATE lancamentos SET {sets} WHERE id_grupo = :_grupo AND mes_ano >= :_mes '
+                f"AND tipo_parcela IN ('parcelado', 'ULTIMA')"
+            ), params)
+    else:
+        for col, val in campos.items():
+            if col in df.columns:
+                df.loc[mask, col] = val
+        save_sheet("lancamentos", df)
+
+    campos_grupo = {k: v for k, v in campos.items() if k in ("valor_parcela", "valor_thais", "pessoa_thais", "categoria")}
+    if "valor" in campos:
+        campos_grupo["valor_parcela"] = campos["valor"]
+    if campos_grupo:
+        df_g = load_sheet("grupos_parcelamento")
+        if not df_g.empty and id_grupo in df_g["id"].values:
+            for col, val in campos_grupo.items():
+                if col in df_g.columns:
+                    df_g.loc[df_g["id"] == id_grupo, col] = val
+            save_sheet("grupos_parcelamento", df_g)
+    return n
+
+
 def delete_lancamento(lancamento_id: int):
     if USE_POSTGRES:
         from sqlalchemy import text
