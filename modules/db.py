@@ -67,6 +67,8 @@ _SCHEMA = {
     #   "restaurante" — tabela livre (nome usado como "dia"), mesma exibição.
     #   "aluguel"     — tabela livre; ao criar um mês novo, copia as linhas do mês
     #                    anterior automaticamente (ver upsert_mes).
+    #   "cofrinho"    — extrato de poupança (descrição/valor/nota); também copiado
+    #                    do mês anterior ao criar um mês novo (ela ajusta o que mudou).
     "controles_extra": ["id", "tipo", "mes_ano", "nome", "valor", "nota", "usuario"],
 }
 
@@ -161,23 +163,29 @@ def _ensure_usuario_coluna_postgres(sheet_name: str):
 
 
 def _load_sheet_raw(sheet_name: str) -> pd.DataFrame:
-    """Lê a tabela inteira, sem filtrar por usuário (uso interno)."""
+    """Lê a tabela inteira, sem filtrar por usuário (uso interno).
+
+    IMPORTANTE: só retorna DataFrame vazio quando a tabela genuinamente não existe
+    ainda (caso legítimo, ex.: 1ª inicialização). Qualquer outro erro de leitura
+    (conexão caiu, timeout, etc.) é propagado (raise) — nunca tratado como "tabela
+    vazia", pois save_sheet() usa este resultado para decidir quais linhas de
+    OUTRAS contas preservar ao regravar a tabela inteira. Engolir o erro aqui já
+    causou perda de dados real (apagou lançamentos de outra conta por engano)."""
     if USE_POSTGRES:
-        try:
-            if sheet_name in _TABELAS_COM_USUARIO and _sa_inspect(_engine).has_table(sheet_name):
-                _ensure_usuario_coluna_postgres(sheet_name)
-            return pd.read_sql_table(sheet_name, _engine)
-        except Exception:
+        if not _sa_inspect(_engine).has_table(sheet_name):
             return pd.DataFrame()
+        if sheet_name in _TABELAS_COM_USUARIO:
+            _ensure_usuario_coluna_postgres(sheet_name)
+        return pd.read_sql_table(sheet_name, _engine)
     if not db_exists():
         return pd.DataFrame()
     try:
         df = pd.read_excel(DB_PATH, sheet_name=sheet_name, engine="openpyxl")
-        if sheet_name in _TABELAS_COM_USUARIO and "usuario" not in df.columns:
-            df["usuario"] = "kelvin"
-        return df
     except ValueError:
-        return pd.DataFrame()
+        return pd.DataFrame()  # aba não existe ainda no arquivo local
+    if sheet_name in _TABELAS_COM_USUARIO and "usuario" not in df.columns:
+        df["usuario"] = "kelvin"
+    return df
 
 
 def _write_sheet_raw(sheet_name: str, df: pd.DataFrame):
@@ -283,24 +291,29 @@ def upsert_mes(mes_ano: str, salario_kelvin: float, salario_thais: float, fechad
         df = pd.concat([df, novo], ignore_index=True)
     save_sheet("meses", df)
     if mes_e_novo:
-        _copiar_aluguel_mes_anterior(mes_ano)
+        for _tipo in ("aluguel", "cofrinho"):
+            _copiar_controle_recorrente(_tipo, mes_ano)
 
 
-def _copiar_aluguel_mes_anterior(mes_ano_novo: str):
-    """Ao criar um mês novo, copia a tabela 'aluguel' (nome/valor/nota) do mês
-    anterior mais recente dessa conta — controle manual que normalmente se repete."""
+_TIPOS_CONTROLE_RECORRENTE = ("aluguel", "cofrinho")
+
+
+def _copiar_controle_recorrente(tipo: str, mes_ano_novo: str):
+    """Ao criar um mês novo, copia uma tabela de controles_extra (nome/valor/nota)
+    do mês anterior mais recente dessa conta — usado para 'aluguel' e 'cofrinho',
+    controles manuais que naturalmente se repetem/acumulam mês a mês."""
     df = load_sheet("controles_extra")
     if df.empty:
         return
-    anteriores = df[(df["tipo"] == "aluguel") & (df["mes_ano"] < mes_ano_novo)]
+    anteriores = df[(df["tipo"] == tipo) & (df["mes_ano"] < mes_ano_novo)]
     if anteriores.empty:
         return
     ultimo_mes = anteriores["mes_ano"].max()
-    if not df[(df["tipo"] == "aluguel") & (df["mes_ano"] == mes_ano_novo)].empty:
-        return  # já tem aluguel cadastrado nesse mês, não sobrescreve
+    if not df[(df["tipo"] == tipo) & (df["mes_ano"] == mes_ano_novo)].empty:
+        return  # já tem dados desse tipo cadastrados nesse mês, não sobrescreve
     base = anteriores[anteriores["mes_ano"] == ultimo_mes]
     for _, r in base.iterrows():
-        add_controle_extra("aluguel", mes_ano_novo, str(r["nome"]),
+        add_controle_extra(tipo, mes_ano_novo, str(r["nome"]),
                             float(r["valor"]) if pd.notna(r["valor"]) else 0.0,
                             str(r["nota"]) if pd.notna(r.get("nota")) else None)
 

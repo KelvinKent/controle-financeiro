@@ -337,6 +337,12 @@ if pagina == "Dashboard":
                 ajuda="Ex.: Aposentadoria, Prefeitura, Pensão, Conta... A soma destes itens "
                       "substitui automaticamente o campo \"Salário\" acima ao salvar.",
             )
+        with st.expander("🐷 Cofrinho (poupança)", expanded=False):
+            _editor_controle_extra(
+                "cofrinho", mes, "cofrinho", label_nome="Descrição", mostrar_nota=True,
+                ajuda="Extrato de poupança. Copiado automaticamente do mês anterior ao "
+                      "criar um mês novo — só ajuste o que mudou (novo depósito, saque...).",
+            )
 
     st.divider()
 
