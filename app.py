@@ -347,7 +347,10 @@ if pagina == "Dashboard":
     st.divider()
 
     # ── Painel-resumo (réplica da planilha CONTAS.xlsx) ───────────────────────
-    pin = calcular_painel(mes)
+    # Específico do modelo Kelvin/Thais (Pix, reembolso da Mãe, YouTube/Spotify,
+    # CDB/Previdência) — não se aplica à conta da Mãe, então o bloco inteiro
+    # (grid "Resumo do mês" + o expander de edição) é pulado para ela.
+    pin = calcular_painel(mes) if get_usuario_atual() != "mae" else None
 
     def _br(v):
         return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -364,88 +367,89 @@ if pagina == "Dashboard":
                 f'<td style="padding:6px 12px;font-size:13px;font-weight:{w}">{label}</td>'
                 f'<td style="padding:6px 12px;text-align:right;font-size:13px;font-weight:{w};color:{cor};white-space:nowrap">{_br(valor)}</td></tr>')
 
-    painel_html = f"""
-    <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-      <div class="fc-box" style="flex:1;min-width:280px">
-        <div class="fc-hdr">{cfg.get('nome_kelvin','Kelvin')}</div>
-        <table style="width:100%;border-collapse:collapse">
-          <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
-            <td style="padding:6px 12px;background:#2f6fd1;color:#fff;font-size:13px;font-weight:600">Salário</td>
-            <td style="padding:6px 12px;background:#2f6fd1;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_kelvin'])}</td>
-          </tr>
-          <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
-            <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_kelvin'])}</td></tr>
-        </table>
-      </div>
-      <div class="fc-box" style="flex:1;min-width:280px">
-        <div class="fc-hdr">{cfg.get('nome_thais','Thais')}</div>
-        <table style="width:100%;border-collapse:collapse">
-          <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
-            <td style="padding:6px 12px;background:#1e9e5a;color:#fff;font-size:13px;font-weight:600">Salário</td>
-            <td style="padding:6px 12px;background:#1e9e5a;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_thais'])}</td>
-          </tr>
-          <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
-            <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_thais'])}</td></tr>
-        </table>
-      </div>
-    </div>
+    if pin is not None:
+        painel_html = f"""
+        <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
+          <div class="fc-box" style="flex:1;min-width:280px">
+            <div class="fc-hdr">{cfg.get('nome_kelvin','Kelvin')}</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+                <td style="padding:6px 12px;background:#2f6fd1;color:#fff;font-size:13px;font-weight:600">Salário</td>
+                <td style="padding:6px 12px;background:#2f6fd1;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_kelvin'])}</td>
+              </tr>
+              <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
+                <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_kelvin'])}</td></tr>
+            </table>
+          </div>
+          <div class="fc-box" style="flex:1;min-width:280px">
+            <div class="fc-hdr">{cfg.get('nome_thais','Thais')}</div>
+            <table style="width:100%;border-collapse:collapse">
+              <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+                <td style="padding:6px 12px;background:#1e9e5a;color:#fff;font-size:13px;font-weight:600">Salário</td>
+                <td style="padding:6px 12px;background:#1e9e5a;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_thais'])}</td>
+              </tr>
+              <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
+                <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_thais'])}</td></tr>
+            </table>
+          </div>
+        </div>
 
-    <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-      <div class="fc-box" style="flex:1;min-width:280px">
-        <div class="fc-hdr">Gastos + Pix</div>
-        <table style="width:100%;border-collapse:collapse">
-          {_linha('Cartão ' + cfg.get('nome_kelvin','Kelvin'), pin['cartao_kelvin'])}
-          {_linha('Cartão ' + cfg.get('nome_thais','Thais'), pin['cartao_thais'])}
-          {_linha('Pagamentos', pin['pagamentos'])}
-          {_linha('Água - Boleto', pin['agua_boleto'])}
-          {_linha('Mãe', pin['mae'])}
-          {_linha('Total', pin['total_gastos'], bold=True, bg='rgba(255,255,255,0.05)')}
-        </table>
-      </div>
-      <div class="fc-box" style="flex:1;min-width:280px">
-        <div class="fc-hdr">Gastos {cfg.get('nome_thais','Thais')}</div>
-        <table style="width:100%;border-collapse:collapse">
-          {_linha('Cartão', pin['thais_cartao'])}
-          {_linha('Total', pin['thais_total'], bold=True, bg='rgba(255,255,255,0.05)')}
-        </table>
-      </div>
-    </div>
+        <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
+          <div class="fc-box" style="flex:1;min-width:280px">
+            <div class="fc-hdr">Gastos + Pix</div>
+            <table style="width:100%;border-collapse:collapse">
+              {_linha('Cartão ' + cfg.get('nome_kelvin','Kelvin'), pin['cartao_kelvin'])}
+              {_linha('Cartão ' + cfg.get('nome_thais','Thais'), pin['cartao_thais'])}
+              {_linha('Pagamentos', pin['pagamentos'])}
+              {_linha('Água - Boleto', pin['agua_boleto'])}
+              {_linha('Mãe', pin['mae'])}
+              {_linha('Total', pin['total_gastos'], bold=True, bg='rgba(255,255,255,0.05)')}
+            </table>
+          </div>
+          <div class="fc-box" style="flex:1;min-width:280px">
+            <div class="fc-hdr">Gastos {cfg.get('nome_thais','Thais')}</div>
+            <table style="width:100%;border-collapse:collapse">
+              {_linha('Cartão', pin['thais_cartao'])}
+              {_linha('Total', pin['thais_total'], bold=True, bg='rgba(255,255,255,0.05)')}
+            </table>
+          </div>
+        </div>
 
-    <div class="fc-box" style="font-family:inherit">
-      <div class="fc-hdr">Lembretes — quem me paga</div>
-      <div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin['youtube_lembrete'] or '—'}</div>
-      <div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin['spotify_lembrete'] or '—'}</div>
-    </div>
+        <div class="fc-box" style="font-family:inherit">
+          <div class="fc-hdr">Lembretes — quem me paga</div>
+          <div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin['youtube_lembrete'] or '—'}</div>
+          <div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin['spotify_lembrete'] or '—'}</div>
+        </div>
 
-    <div class="fc-box" style="font-family:inherit">
-      <div class="fc-hdr">Investimentos</div>
-      <table style="width:100%;border-collapse:collapse">
-        {_linha('CDB (Reserva)', pin['cdb_reserva'], neg_red=False)}
-        {_linha('Previdência', pin['previdencia'], neg_red=False)}
-      </table>
-    </div>
-    """
-    st.markdown("#### Resumo do mês")
-    st.html(painel_html)
+        <div class="fc-box" style="font-family:inherit">
+          <div class="fc-hdr">Investimentos</div>
+          <table style="width:100%;border-collapse:collapse">
+            {_linha('CDB (Reserva)', pin['cdb_reserva'], neg_red=False)}
+            {_linha('Previdência', pin['previdencia'], neg_red=False)}
+          </table>
+        </div>
+        """
+        st.markdown("#### Resumo do mês")
+        st.html(painel_html)
 
-    with st.expander("⚙️ Editar campos do painel (Água, lembretes e investimentos)"):
-        st.caption("Apenas estes campos são de digitação livre — os demais são calculados dos lançamentos.")
-        pe1, pe2, pe3 = st.columns(3)
-        ed_agua = pe1.number_input("Água - Boleto (R$)", min_value=0.0, step=1.0, format="%.2f",
-            value=float(pin["agua_boleto"]), key="pin_agua")
-        ed_cdb = pe2.number_input("CDB / Reserva (R$)", min_value=0.0, step=100.0, format="%.2f",
-            value=float(pin["cdb_reserva"]), key="pin_cdb")
-        ed_prev = pe3.number_input("Previdência (R$)", min_value=0.0, step=100.0, format="%.2f",
-            value=float(pin["previdencia"]), key="pin_prev")
-        ed_yt = st.text_input("Lembrete YouTube", value=pin["youtube_lembrete"], key="pin_yt")
-        ed_sp = st.text_input("Lembrete Spotify", value=pin["spotify_lembrete"], key="pin_sp")
-        if st.button("💾 Salvar painel", key="btn_pin"):
-            set_painel(mes, agua_boleto=ed_agua, cdb_reserva=ed_cdb, previdencia=ed_prev,
-                       youtube_lembrete=ed_yt, spotify_lembrete=ed_sp)
-            st.success("Painel atualizado!")
-            st.rerun()
+        with st.expander("⚙️ Editar campos do painel (Água, lembretes e investimentos)"):
+            st.caption("Apenas estes campos são de digitação livre — os demais são calculados dos lançamentos.")
+            pe1, pe2, pe3 = st.columns(3)
+            ed_agua = pe1.number_input("Água - Boleto (R$)", min_value=0.0, step=1.0, format="%.2f",
+                value=float(pin["agua_boleto"]), key="pin_agua")
+            ed_cdb = pe2.number_input("CDB / Reserva (R$)", min_value=0.0, step=100.0, format="%.2f",
+                value=float(pin["cdb_reserva"]), key="pin_cdb")
+            ed_prev = pe3.number_input("Previdência (R$)", min_value=0.0, step=100.0, format="%.2f",
+                value=float(pin["previdencia"]), key="pin_prev")
+            ed_yt = st.text_input("Lembrete YouTube", value=pin["youtube_lembrete"], key="pin_yt")
+            ed_sp = st.text_input("Lembrete Spotify", value=pin["spotify_lembrete"], key="pin_sp")
+            if st.button("💾 Salvar painel", key="btn_pin"):
+                set_painel(mes, agua_boleto=ed_agua, cdb_reserva=ed_cdb, previdencia=ed_prev,
+                           youtube_lembrete=ed_yt, spotify_lembrete=ed_sp)
+                st.success("Painel atualizado!")
+                st.rerun()
 
-    st.divider()
+        st.divider()
 
     res = resumo_mes(mes)
     total = res["total_gasto"]
