@@ -1205,31 +1205,40 @@ elif pagina == "Fixos":
     fixos = get_fixos(apenas_ativos=False)
 
     with st.expander("➕ Novo fixo", expanded=False):
-        with st.form("form_fixo", clear_on_submit=True):
-            ff1, ff2 = st.columns(2)
-            f_cartao = ff1.selectbox("Cartão", CARTOES, key="f_cartao")
-            f_desc = ff2.text_input("Descrição", key="f_desc")
-            ff3, ff4 = st.columns(2)
-            f_cat = ff3.selectbox("Categoria", CATEGORIAS, key="f_cat")
-            f_val = ff4.number_input("Valor estimado (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_val")
-            ff5, ff6, ff7 = st.columns(3)
-            f_divide = ff5.checkbox("Dividir?", key="f_divide")
-            f_pessoa = ff6.text_input("Pessoa", value="Thais", key="f_pessoa")
-            f_vt = ff7.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_vt")
-            if st.form_submit_button("Salvar fixo", use_container_width=True):
-                df_fixos = load_sheet("fixos")
-                novo_id = int(df_fixos["id"].max() + 1) if not df_fixos.empty else 1
-                novo = {
-                    "id": novo_id, "cartao": f_cartao, "descricao": f_desc,
-                    "categoria": f_cat, "valor_estimado": f_val,
-                    "pessoa_thais": f_pessoa if f_divide else None,
-                    "valor_thais": f_vt if f_divide else None,
-                    "ativo": True,
-                }
-                df_fixos = pd.concat([df_fixos, pd.DataFrame([novo])], ignore_index=True)
-                save_sheet("fixos", df_fixos)
-                st.success(f"Fixo '{f_desc}' adicionado!")
-                st.rerun()
+        # Sem st.form: precisa ser reativo para mostrar a bandeira/tipo certo
+        # conforme o cartão escolhido (igual ao formulário de Lançamentos).
+        ff1, ff2 = st.columns(2)
+        f_cartao = ff1.selectbox("Cartão", CARTOES, key="f_cartao")
+        f_desc = ff2.text_input("Descrição", key="f_desc")
+        f_subtipo = None
+        if f_cartao == "Santander":
+            f_subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, horizontal=True, key="f_subtipo_santander")
+        elif f_cartao == "Itaú":
+            f_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, horizontal=True, key="f_subtipo_itau")
+        ff3, ff4 = st.columns(2)
+        f_cat = ff3.selectbox("Categoria", CATEGORIAS, key="f_cat")
+        f_val = ff4.number_input("Valor estimado (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_val")
+        ff5, ff6, ff7 = st.columns(3)
+        f_divide = ff5.checkbox("Dividir?", key="f_divide")
+        f_pessoa = ff6.text_input("Pessoa", value="Thais", key="f_pessoa")
+        f_vt = ff7.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_vt")
+        if st.button("Salvar fixo", use_container_width=True, key="f_salvar"):
+            df_fixos = load_sheet("fixos")
+            novo_id = int(df_fixos["id"].max() + 1) if not df_fixos.empty else 1
+            novo = {
+                "id": novo_id, "cartao": f_cartao, "subtipo_cartao": f_subtipo,
+                "descricao": f_desc, "categoria": f_cat, "valor_estimado": f_val,
+                "pessoa_thais": f_pessoa if f_divide else None,
+                "valor_thais": f_vt if f_divide else None,
+                "ativo": True,
+            }
+            df_fixos = pd.concat([df_fixos, pd.DataFrame([novo])], ignore_index=True)
+            save_sheet("fixos", df_fixos)
+            st.success(f"Fixo '{f_desc}' adicionado!")
+            for k in ("f_cartao", "f_desc", "f_subtipo_santander", "f_subtipo_itau",
+                      "f_cat", "f_val", "f_divide", "f_pessoa", "f_vt"):
+                st.session_state.pop(k, None)
+            st.rerun()
 
     if fixos.empty:
         st.info("Nenhum fixo cadastrado ainda.")
@@ -1300,6 +1309,17 @@ elif pagina == "Fixos":
                 e_cartao = ge1.selectbox("Cartão", CARTOES,
                     index=CARTOES.index(ed["cartao"]) if ed["cartao"] in CARTOES else 0, key="efx_cartao")
                 e_desc = ge2.text_input("Descrição", value=str(ed["descricao"]), key="efx_desc")
+                e_subtipo = None
+                _sub_atual = ed.get("subtipo_cartao")
+                _sub_atual = str(_sub_atual) if _sub_atual and not pd.isna(_sub_atual) else None
+                if e_cartao == "Santander":
+                    _idx = SUBTIPOS_SANTANDER.index(_sub_atual) if _sub_atual in SUBTIPOS_SANTANDER else 0
+                    e_subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=_idx,
+                        horizontal=True, key="efx_subtipo_santander")
+                elif e_cartao == "Itaú":
+                    _idx = SUBTIPOS_ITAU.index(_sub_atual) if _sub_atual in SUBTIPOS_ITAU else 0
+                    e_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=_idx,
+                        horizontal=True, key="efx_subtipo_itau")
                 ge3, ge4 = st.columns(2)
                 e_cat = ge3.selectbox("Categoria", CATEGORIAS,
                     index=CATEGORIAS.index(ed["categoria"]) if ed["categoria"] in CATEGORIAS else 0, key="efx_cat")
@@ -1317,7 +1337,8 @@ elif pagina == "Fixos":
                 gb1, gb2 = st.columns(2)
                 if gb1.button("💾 Salvar fixo", use_container_width=True, key="efx_salvar"):
                     update_fixo(st.session_state.editando_fixo_id,
-                        cartao=e_cartao, descricao=e_desc, categoria=e_cat, valor_estimado=e_val,
+                        cartao=e_cartao, subtipo_cartao=e_subtipo, descricao=e_desc,
+                        categoria=e_cat, valor_estimado=e_val,
                         pessoa_thais=e_pessoa if e_div else None,
                         valor_thais=e_vt if e_div else None)
                     st.session_state.editando_fixo_id = None
