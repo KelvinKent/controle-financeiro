@@ -17,6 +17,7 @@ from modules.db import (
     fazer_backup, listar_backups, update_fixo, delete_fixo,
     get_painel, set_painel, calcular_painel, add_lancamentos_bulk, set_mes_fechado,
     get_meses_fechados, propagar_parcela_grupo, set_usuario_atual, get_usuario_atual,
+    get_controles_extra, add_controle_extra, delete_controle_extra,
 )
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -48,7 +49,7 @@ class _MesLabels:
 MES_LABELS = _MesLabels()
 
 
-CORES_BANDEIRA_ITAU = {"Visa": "#1A1F71", "Mastercard": "#EB001B"}
+CORES_BANDEIRA_ITAU = {"Visa": "#1A1F71", "Mastercard": "#EB001B", "LATAM Pass": "#00128C"}
 
 
 def badge_cartao(cartao: str, subtipo: str = None) -> str:
@@ -80,6 +81,43 @@ def _fmt_desc(desc) -> str:
     if letras and all(c.isupper() for c in letras):
         return s.title()
     return s
+
+
+def _editor_controle_extra(tipo: str, mes: str, titulo: str, label_nome: str = "Nome",
+                            mostrar_nota: bool = False, ajuda: str = None):
+    """Tabela editável genérica (nome/valor[/nota]) para os controles paralelos
+    manuais da conta da Mãe (salário, fixas, restaurante, aluguel). 'Salvar' apaga
+    e recria as linhas desse mês/tipo a partir do conteúdo editado."""
+    import streamlit as _st
+    df_ext = get_controles_extra(mes, tipo)
+    cols = ["nome", "valor"] + (["nota"] if mostrar_nota else [])
+    base = df_ext[cols].reset_index(drop=True) if not df_ext.empty else pd.DataFrame(columns=cols)
+    col_config = {
+        "nome": _st.column_config.TextColumn(label_nome),
+        "valor": _st.column_config.NumberColumn("Valor (R$)", format="%.2f"),
+    }
+    if mostrar_nota:
+        col_config["nota"] = _st.column_config.TextColumn("Nota")
+    if ajuda:
+        _st.caption(ajuda)
+    edited = _st.data_editor(base, num_rows="dynamic", use_container_width=True,
+                              column_config=col_config, key=f"editor_{tipo}_{mes}")
+    if _st.button(f"💾 Salvar {titulo.lower()}", key=f"salvar_{tipo}_{mes}"):
+        for _, r in df_ext.iterrows():
+            delete_controle_extra(int(r["id"]))
+        for _, r in edited.iterrows():
+            nome = str(r.get("nome") or "").strip()
+            if not nome:
+                continue
+            valor = float(r.get("valor") or 0)
+            nota = (str(r.get("nota")).strip() or None) if mostrar_nota and r.get("nota") else None
+            add_controle_extra(tipo, mes, nome, valor, nota)
+        if tipo == "salario_componente":
+            _st.session_state.pop("sal_k", None)
+        _st.success(f"{titulo} salvo(a)!")
+        _st.rerun()
+    total = float(edited["valor"].fillna(0).sum()) if not edited.empty and "valor" in edited.columns else 0.0
+    _st.caption(f"Total: R$ {total:,.2f}")
 
 
 def _mes_padrao(meses: list, fechados: set = frozenset()) -> str:
@@ -291,6 +329,15 @@ if pagina == "Dashboard":
             st.rerun()
 
     sal_k, sal_t = novo_sal_k, novo_sal_t
+
+    if get_usuario_atual() == "mae":
+        with st.expander("🧾 Componentes do salário (a soma vira o salário do mês acima)", expanded=False):
+            _editor_controle_extra(
+                "salario_componente", mes, "componentes do salário", label_nome="Componente",
+                ajuda="Ex.: Aposentadoria, Prefeitura, Pensão, Conta... A soma destes itens "
+                      "substitui automaticamente o campo \"Salário\" acima ao salvar.",
+            )
+
     st.divider()
 
     # ── Painel-resumo (réplica da planilha CONTAS.xlsx) ───────────────────────
@@ -947,6 +994,15 @@ elif pagina == "Lançamentos":
     filtro_ordem = fc6.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
 
+    if get_usuario_atual() == "mae":
+        with st.expander("📋 Fixas (orçamento mensal)", expanded=False):
+            _editor_controle_extra("fixas", mes, "fixas")
+        with st.expander("🍽️ Restaurante", expanded=False):
+            _editor_controle_extra("restaurante", mes, "restaurante", label_nome="Dia")
+        with st.expander("🏠 Aluguel", expanded=False):
+            _editor_controle_extra("aluguel", mes, "aluguel", label_nome="Pessoa", mostrar_nota=True,
+                                    ajuda="Copiado automaticamente do mês anterior ao criar um mês novo.")
+
     # ── Novo lançamento (sem st.form → checkbox reativo) ──────────────────────
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
@@ -1003,6 +1059,7 @@ elif pagina == "Lançamentos":
             "Itaú": "#FF6B00", "C6": "#000000",
             ("Santander", "Físico"): "#A80000", ("Santander", None): "#EC0000",
             ("Itaú", "Visa"): CORES_BANDEIRA_ITAU["Visa"], ("Itaú", "Mastercard"): CORES_BANDEIRA_ITAU["Mastercard"],
+            ("Itaú", "LATAM Pass"): CORES_BANDEIRA_ITAU["LATAM Pass"],
         }
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)

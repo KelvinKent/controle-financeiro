@@ -58,6 +58,16 @@ _SCHEMA = {
     "orcamentos": ["mes_ano", "categoria", "valor_planejado", "usuario"],
     "painel": ["mes_ano", "agua_boleto", "youtube_lembrete", "spotify_lembrete",
                "cdb_reserva", "previdencia", "usuario"],
+    # Controles paralelos/manuais (Sprint 11, conta da Mãe): listas editáveis de
+    # nome+valor por mês, usadas para 4 finalidades (campo `tipo`):
+    #   "salario_componente" — itens que somados compõem o salário do mês (Aposent,
+    #       Prefeit, Pensão...); o total alimenta automaticamente meses.salario_kelvin.
+    #   "fixas"       — tabela livre de orçamento mensal (Cartão, Afepesp, Carro...),
+    #                    exibida na página Lançamentos, sem efeito em outros cálculos.
+    #   "restaurante" — tabela livre (nome usado como "dia"), mesma exibição.
+    #   "aluguel"     — tabela livre; ao criar um mês novo, copia as linhas do mês
+    #                    anterior automaticamente (ver upsert_mes).
+    "controles_extra": ["id", "tipo", "mes_ano", "nome", "valor", "nota", "usuario"],
 }
 
 # Tabelas multi-usuário: cada conta (Kelvin, Mãe...) só vê suas próprias linhas.
@@ -92,7 +102,7 @@ def _next_id(sheet_name: str) -> int:
 CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Reforma", "Negócios", "Metinha", "Livre"]
 CARTOES = ["Santander", "Itaú", "C6"]
 SUBTIPOS_SANTANDER = ["Regular", "Físico"]
-SUBTIPOS_ITAU = ["Visa", "Mastercard"]
+SUBTIPOS_ITAU = ["Visa", "Mastercard", "LATAM Pass"]
 TIPOS = ["única", "FIXO", "ULTIMA"]
 
 CORES_CARTAO = {
@@ -261,7 +271,8 @@ def upsert_mes(mes_ano: str, salario_kelvin: float, salario_thais: float, fechad
     """Atualiza salários do mês. `fechado` só é alterado se informado explicitamente —
     None preserva o status atual (evita reabrir o mês ao salvar só os salários)."""
     df = load_sheet("meses")
-    if mes_ano in df["mes_ano"].values:
+    mes_e_novo = mes_ano not in df["mes_ano"].values
+    if not mes_e_novo:
         df.loc[df["mes_ano"] == mes_ano, "salario_kelvin"] = salario_kelvin
         df.loc[df["mes_ano"] == mes_ano, "salario_thais"] = salario_thais
         if fechado is not None:
@@ -271,6 +282,89 @@ def upsert_mes(mes_ano: str, salario_kelvin: float, salario_thais: float, fechad
                                "salario_thais": salario_thais, "fechado": bool(fechado)}])
         df = pd.concat([df, novo], ignore_index=True)
     save_sheet("meses", df)
+    if mes_e_novo:
+        _copiar_aluguel_mes_anterior(mes_ano)
+
+
+def _copiar_aluguel_mes_anterior(mes_ano_novo: str):
+    """Ao criar um mês novo, copia a tabela 'aluguel' (nome/valor/nota) do mês
+    anterior mais recente dessa conta — controle manual que normalmente se repete."""
+    df = load_sheet("controles_extra")
+    if df.empty:
+        return
+    anteriores = df[(df["tipo"] == "aluguel") & (df["mes_ano"] < mes_ano_novo)]
+    if anteriores.empty:
+        return
+    ultimo_mes = anteriores["mes_ano"].max()
+    if not df[(df["tipo"] == "aluguel") & (df["mes_ano"] == mes_ano_novo)].empty:
+        return  # já tem aluguel cadastrado nesse mês, não sobrescreve
+    base = anteriores[anteriores["mes_ano"] == ultimo_mes]
+    for _, r in base.iterrows():
+        add_controle_extra("aluguel", mes_ano_novo, str(r["nome"]),
+                            float(r["valor"]) if pd.notna(r["valor"]) else 0.0,
+                            str(r["nota"]) if pd.notna(r.get("nota")) else None)
+
+
+def get_controles_extra(mes_ano: str, tipo: str) -> pd.DataFrame:
+    df = load_sheet("controles_extra")
+    if df.empty:
+        return df
+    return df[(df["mes_ano"] == mes_ano) & (df["tipo"] == tipo)].copy()
+
+
+def add_controle_extra(tipo: str, mes_ano: str, nome: str, valor: float = 0.0, nota: str = None) -> int:
+    df = load_sheet("controles_extra")
+    novo_id = _next_id("controles_extra")
+    novo = {"id": novo_id, "tipo": tipo, "mes_ano": mes_ano, "nome": nome,
+            "valor": valor, "nota": nota}
+    df = pd.concat([df, pd.DataFrame([novo])], ignore_index=True)
+    save_sheet("controles_extra", df)
+    if tipo == "salario_componente":
+        _atualizar_salario_pelos_componentes(mes_ano)
+    return novo_id
+
+
+def update_controle_extra(item_id: int, **campos):
+    df = load_sheet("controles_extra")
+    if df.empty:
+        return
+    tipo = df.loc[df["id"] == item_id, "tipo"].iloc[0] if (df["id"] == item_id).any() else None
+    for col, val in campos.items():
+        if col in df.columns:
+            df.loc[df["id"] == item_id, col] = val
+    save_sheet("controles_extra", df)
+    if tipo == "salario_componente":
+        mes_ano = df.loc[df["id"] == item_id, "mes_ano"].iloc[0]
+        _atualizar_salario_pelos_componentes(mes_ano)
+
+
+def delete_controle_extra(item_id: int):
+    df = load_sheet("controles_extra")
+    if df.empty:
+        return
+    linha = df[df["id"] == item_id]
+    tipo = linha["tipo"].iloc[0] if not linha.empty else None
+    mes_ano = linha["mes_ano"].iloc[0] if not linha.empty else None
+    df = df[df["id"] != item_id]
+    save_sheet("controles_extra", df)
+    if tipo == "salario_componente" and mes_ano:
+        _atualizar_salario_pelos_componentes(mes_ano)
+
+
+def _atualizar_salario_pelos_componentes(mes_ano: str):
+    """Quando há itens em 'salario_componente' para o mês, o salário (salario_kelvin)
+    passa a ser a soma deles automaticamente — usado pela conta da Mãe, cujo salário
+    é composto por Aposentadoria + Prefeitura + Pensão + Conta etc."""
+    soma = soma_controles_extra(mes_ano, "salario_componente")
+    mes_atual = get_mes(mes_ano)
+    upsert_mes(mes_ano, soma, float(mes_atual.get("salario_thais") or 0))
+
+
+def soma_controles_extra(mes_ano: str, tipo: str) -> float:
+    df = get_controles_extra(mes_ano, tipo)
+    if df.empty:
+        return 0.0
+    return float(df["valor"].fillna(0).sum())
 
 
 def set_mes_fechado(mes_ano: str, fechado: bool):
