@@ -313,20 +313,35 @@ if pagina == "Dashboard":
                 st.success(f"{mes_label} fechado!")
                 st.rerun()
 
-    st.markdown("#### Salários do mês")
-    col1, col2, col3 = st.columns([1, 1, 2])
-    with col1:
-        novo_sal_k = st.number_input(f"Salário {cfg.get('nome_kelvin','Kelvin')} (R$)",
-            value=sal_k, min_value=0.0, step=100.0, format="%.2f", key="sal_k")
-    with col2:
-        novo_sal_t = st.number_input(f"Salário {cfg.get('nome_thais','Thais')} (R$)",
-            value=sal_t, min_value=0.0, step=100.0, format="%.2f", key="sal_t")
-    with col3:
-        st.write(""); st.write("")
-        if st.button("💾 Salvar salários"):
-            upsert_mes(mes, novo_sal_k, novo_sal_t)
-            st.success("Salários atualizados!")
-            st.rerun()
+    _usuario_mae = get_usuario_atual() == "mae"
+
+    st.markdown("#### Salário do mês" if _usuario_mae else "#### Salários do mês")
+    if _usuario_mae:
+        col1, col3 = st.columns([1, 2])
+        with col1:
+            novo_sal_k = st.number_input("Salário (R$)", value=sal_k, min_value=0.0,
+                step=100.0, format="%.2f", key="sal_k")
+        novo_sal_t = 0.0
+        with col3:
+            st.write(""); st.write("")
+            if st.button("💾 Salvar salário"):
+                upsert_mes(mes, novo_sal_k, novo_sal_t)
+                st.success("Salário atualizado!")
+                st.rerun()
+    else:
+        col1, col2, col3 = st.columns([1, 1, 2])
+        with col1:
+            novo_sal_k = st.number_input(f"Salário {cfg.get('nome_kelvin','Kelvin')} (R$)",
+                value=sal_k, min_value=0.0, step=100.0, format="%.2f", key="sal_k")
+        with col2:
+            novo_sal_t = st.number_input(f"Salário {cfg.get('nome_thais','Thais')} (R$)",
+                value=sal_t, min_value=0.0, step=100.0, format="%.2f", key="sal_t")
+        with col3:
+            st.write(""); st.write("")
+            if st.button("💾 Salvar salários"):
+                upsert_mes(mes, novo_sal_k, novo_sal_t)
+                st.success("Salários atualizados!")
+                st.rerun()
 
     sal_k, sal_t = novo_sal_k, novo_sal_t
 
@@ -474,10 +489,15 @@ if pagina == "Dashboard":
     </div>
     """)
 
-    c1, c2, c3 = st.columns(3)
-    c1.html(_card(f"Salário {cfg.get('nome_kelvin','Kelvin')}", f"R$ {sal_k:,.0f}"))
-    c2.html(_card(f"Salário {cfg.get('nome_thais','Thais')}", f"R$ {sal_t:,.0f}"))
-    c3.html(_card("Total gasto", f"R$ {total:,.0f}"))
+    if _usuario_mae:
+        c1, c3 = st.columns(2)
+        c1.html(_card("Salário", f"R$ {sal_k:,.0f}"))
+        c3.html(_card("Total gasto", f"R$ {total:,.0f}"))
+    else:
+        c1, c2, c3 = st.columns(3)
+        c1.html(_card(f"Salário {cfg.get('nome_kelvin','Kelvin')}", f"R$ {sal_k:,.0f}"))
+        c2.html(_card(f"Salário {cfg.get('nome_thais','Thais')}", f"R$ {sal_t:,.0f}"))
+        c3.html(_card("Total gasto", f"R$ {total:,.0f}"))
 
     st.divider()
 
@@ -489,9 +509,7 @@ if pagina == "Dashboard":
         div_k = int(cfg.get("divisao_kelvin", 80))
         div_t = int(cfg.get("divisao_thais", 20))
 
-        st.markdown(f"#### Gastos por categoria — divisão {div_k}/{div_t}")
-        col_bar, col_div = st.columns([2, 1])
-        with col_bar:
+        def _grafico_categorias():
             df_cat = por_cat.reset_index()
             df_cat.columns = ["Categoria", "Total (R$)"]
             df_cat["Total (R$)"] = df_cat["Total (R$)"].round(2)
@@ -505,17 +523,26 @@ if pagina == "Dashboard":
             fig.update_traces(textposition="outside", textfont_size=10, cliponaxis=False,
                               constraintext="none")
             st.plotly_chart(fig, use_container_width=True)
-        with col_div:
-            st.markdown(f"**{cfg.get('nome_kelvin','Kelvin')}** ({div_k}%)")
-            total_k = total * div_k / 100
-            st.metric("Responsabilidade", f"R$ {total_k:,.0f}")
-            saldo_k = sal_k - total_k
-            st.metric("Saldo", f"R$ {saldo_k:,.0f}", delta_color="normal" if saldo_k >= 0 else "inverse")
-            st.markdown(f"**{cfg.get('nome_thais','Thais')}** ({div_t}%)")
-            total_t = total * div_t / 100
-            st.metric("Responsabilidade", f"R$ {total_t:,.0f}")
-            saldo_t = sal_t - total_t
-            st.metric("Saldo", f"R$ {saldo_t:,.0f}", delta_color="normal" if saldo_t >= 0 else "inverse")
+
+        if _usuario_mae:
+            st.markdown("#### Gastos por categoria")
+            _grafico_categorias()
+        else:
+            st.markdown(f"#### Gastos por categoria — divisão {div_k}/{div_t}")
+            col_bar, col_div = st.columns([2, 1])
+            with col_bar:
+                _grafico_categorias()
+            with col_div:
+                st.markdown(f"**{cfg.get('nome_kelvin','Kelvin')}** ({div_k}%)")
+                total_k = total * div_k / 100
+                st.metric("Responsabilidade", f"R$ {total_k:,.0f}")
+                saldo_k = sal_k - total_k
+                st.metric("Saldo", f"R$ {saldo_k:,.0f}", delta_color="normal" if saldo_k >= 0 else "inverse")
+                st.markdown(f"**{cfg.get('nome_thais','Thais')}** ({div_t}%)")
+                total_t = total * div_t / 100
+                st.metric("Responsabilidade", f"R$ {total_t:,.0f}")
+                saldo_t = sal_t - total_t
+                st.metric("Saldo", f"R$ {saldo_t:,.0f}", delta_color="normal" if saldo_t >= 0 else "inverse")
 
         st.divider()
         col_top, col_export = st.columns([3, 1])
@@ -549,42 +576,43 @@ if pagina == "Dashboard":
         else:
             st.info("Nenhum lançamento variável neste mês.")
 
-        # ── Sprint 5: Painel de divisão ───────────────────────────────────────
-        st.divider()
-        st.markdown("#### Divisão do mês")
-        div_k = int(cfg.get("divisao_kelvin", 80))
-        div_t = int(cfg.get("divisao_thais", 20))
-        nome_k = cfg.get("nome_kelvin", "Kelvin")
-        nome_t = cfg.get("nome_thais", "Thais")
-        divisao = calcular_divisao_mes(mes, div_k, div_t)
+        # ── Sprint 5: Painel de divisão (Kelvin/Thais) — não se aplica à Mãe ──
+        if not _usuario_mae:
+            st.divider()
+            st.markdown("#### Divisão do mês")
+            div_k = int(cfg.get("divisao_kelvin", 80))
+            div_t = int(cfg.get("divisao_thais", 20))
+            nome_k = cfg.get("nome_kelvin", "Kelvin")
+            nome_t = cfg.get("nome_thais", "Thais")
+            divisao = calcular_divisao_mes(mes, div_k, div_t)
 
-        total_div = divisao["total"]
-        k_paga = divisao["kelvin"]
-        t_proporcional = divisao["thais_proporcional"]
-        t_direto = divisao["thais_direto"]
+            total_div = divisao["total"]
+            k_paga = divisao["kelvin"]
+            t_proporcional = divisao["thais_proporcional"]
+            t_direto = divisao["thais_direto"]
 
-        dk1, dk2, dk3, dk4 = st.columns(4)
-        dk1.html(_card("Total fatura", f"R$ {total_div:,.2f}"))
-        dk2.html(_card(f"{nome_k} paga ({div_k}%)", f"R$ {k_paga:,.2f}"))
-        dk3.html(_card(f"{nome_t} — cota ({div_t}%)", f"R$ {t_proporcional:,.2f}"))
-        dk4.html(_card(f"{nome_t} deve (direto)", f"R$ {t_direto:,.2f}",
-                       nota="valor a ser ressarcido" if t_direto > 0 else None))
+            dk1, dk2, dk3, dk4 = st.columns(4)
+            dk1.html(_card("Total fatura", f"R$ {total_div:,.2f}"))
+            dk2.html(_card(f"{nome_k} paga ({div_k}%)", f"R$ {k_paga:,.2f}"))
+            dk3.html(_card(f"{nome_t} — cota ({div_t}%)", f"R$ {t_proporcional:,.2f}"))
+            dk4.html(_card(f"{nome_t} deve (direto)", f"R$ {t_direto:,.2f}",
+                           nota="valor a ser ressarcido" if t_direto > 0 else None))
 
-        if t_direto > 0:
-            st.info(
-                f"💡 **{nome_t}** tem R$ {t_direto:,.2f} em lançamentos marcados como dela — "
-                f"valor a ressarcir para {nome_k}."
-            )
+            if t_direto > 0:
+                st.info(
+                    f"💡 **{nome_t}** tem R$ {t_direto:,.2f} em lançamentos marcados como dela — "
+                    f"valor a ressarcir para {nome_k}."
+                )
 
-        # Detalhamento dos lançamentos com Pessoa preenchida
-        mask_p = lanc["pessoa_thais"].notna() & (lanc["valor_thais"].notna())
-        if mask_p.any():
-            df_pessoa = lanc[mask_p][["descricao", "categoria", "pessoa_thais", "valor_thais", "valor"]].copy()
-            df_pessoa.columns = ["Descrição", "Categoria", "Pessoa", "Valor (Pessoa)", "Valor Total"]
-            df_pessoa["Valor (Pessoa)"] = df_pessoa["Valor (Pessoa)"].apply(lambda x: f"R$ {float(x):,.2f}")
-            df_pessoa["Valor Total"] = df_pessoa["Valor Total"].apply(lambda x: f"R$ {float(x):,.2f}")
-            with st.expander(f"Ver detalhes dos {mask_p.sum()} lançamentos divididos"):
-                st.dataframe(df_pessoa, use_container_width=True, hide_index=True)
+            # Detalhamento dos lançamentos com Pessoa preenchida
+            mask_p = lanc["pessoa_thais"].notna() & (lanc["valor_thais"].notna())
+            if mask_p.any():
+                df_pessoa = lanc[mask_p][["descricao", "categoria", "pessoa_thais", "valor_thais", "valor"]].copy()
+                df_pessoa.columns = ["Descrição", "Categoria", "Pessoa", "Valor (Pessoa)", "Valor Total"]
+                df_pessoa["Valor (Pessoa)"] = df_pessoa["Valor (Pessoa)"].apply(lambda x: f"R$ {float(x):,.2f}")
+                df_pessoa["Valor Total"] = df_pessoa["Valor Total"].apply(lambda x: f"R$ {float(x):,.2f}")
+                with st.expander(f"Ver detalhes dos {mask_p.sum()} lançamentos divididos"):
+                    st.dataframe(df_pessoa, use_container_width=True, hide_index=True)
 
         # ── Sprint 5: Orçamento por categoria ────────────────────────────────
         st.divider()
