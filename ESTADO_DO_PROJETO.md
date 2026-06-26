@@ -209,6 +209,26 @@ Sem `DATABASE_URL`, usa o Excel local. Acesse http://localhost:8501.
   ```
   Faz backup, reimporta Jul–Dez/26 e **preserva parcelamentos do app**.
 
+### Multi-usuário (Sprint 11) — conta da Mãe
+- O app agora suporta **mais de uma conta** no mesmo deploy/banco. Cada conta tem
+  senha própria e só vê seus próprios dados (filtro pela coluna `usuario`, aplicado
+  centralmente em `load_sheet`/`save_sheet` em `modules/db.py`).
+- Contas definidas em `_CONTAS` no topo do `app.py`: `kelvin` (senha em
+  `APP_PASSWORD`) e `mae` (senha em `APP_PASSWORD_MAE`).
+- **Para cadastrar a senha da Mãe:** no painel do Streamlit Cloud, abrir o app →
+  "⋮" → **Settings** → **Secrets**, e adicionar a linha:
+  ```
+  APP_PASSWORD_MAE = "a-senha-que-ela-vai-usar"
+  ```
+  (mesma tela onde já está `APP_PASSWORD`/`DATABASE_URL`). Salvar reinicia o app
+  automaticamente. Depois disso, a tela de login passa a mostrar um seletor de
+  conta (Kelvin/Mãe) antes do campo de senha.
+- Dados antigos (tudo criado antes dessa sprint) pertencem à conta `kelvin` —
+  migração automática adiciona a coluna `usuario` nas tabelas Postgres existentes
+  e marca essas linhas como `kelvin` na primeira leitura após o deploy.
+- Para adicionar uma terceira conta no futuro, basta um novo item em `_CONTAS` +
+  uma nova variável de senha nos Secrets — não precisa de mudança em `db.py`.
+
 ---
 
 ## 10. Histórico de sprints (todas concluídas)
