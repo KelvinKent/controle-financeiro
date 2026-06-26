@@ -244,6 +244,8 @@ Sem `DATABASE_URL`, usa o Excel local. Acesse http://localhost:8501.
 9. **Painel-resumo na Home + Conferido + criar meses futuros + re-sync da planilha.**
 10. **Bandeira Itaú (Visa/Mastercard) + UX de filtros/edição + fechar mês + correções de
     parcelamento** — ver detalhes abaixo.
+11. **Multi-usuário (conta da Mãe) + importação dos dados dela + cartão LATAM Pass + controles
+    paralelos manuais** — ver detalhes abaixo.
 
 ### Sprint 10 — detalhes (2026-06-25)
 - **Lançamentos:** cards de "Totais por cartão" clicáveis (filtram a tabela, substituindo a
@@ -287,6 +289,41 @@ Sem `DATABASE_URL`, usa o Excel local. Acesse http://localhost:8501.
 - "Fechar mês" é controle manual do usuário (não automático por data) — ele decide quando já
   pagou a fatura do mês.
 
+### Sprint 11 — detalhes (2026-06-26): multi-usuário + conta da Mãe
+- **Multi-usuário:** cada conta (`kelvin`, `mae`) tem senha própria (`APP_PASSWORD` /
+  `APP_PASSWORD_MAE` nos Secrets) e só vê seus dados — coluna `usuario` filtrada centralmente
+  em `load_sheet`/`save_sheet` (`modules/db.py`). Ver §9 "Multi-usuário" para onde cadastrar
+  senha de uma nova conta. Ids de `lancamentos`/`grupos_parcelamento`/`controles_extra` são
+  **globalmente únicos entre contas** (`_next_id`), mesmo cada conta só vendo os seus.
+- **Cartão LATAM Pass:** novo subtipo de Itaú (`SUBTIPOS_ITAU = ["Visa","Mastercard","LATAM Pass"]`),
+  usado pela Mãe.
+- **Controles paralelos da Mãe** (tabela `controles_extra`, genérica nome/valor/nota por mês/tipo):
+  - `salario_componente` (Dashboard): itens que somados definem o salário do mês automaticamente.
+  - `fixas` (Lançamentos): orçamento mensal livre.
+  - `cofrinho` (Dashboard): extrato de poupança; copiado do mês anterior ao criar mês novo.
+  - `aluguel` (Lançamentos): mesma lógica de cópia automática.
+  Todos os 4 editores só aparecem para `usuario=="mae"` — zero mudança visual para o Kelvin.
+- **Importação dos dados históricos da Mãe** (planilha "CONTAS - Mãe.xlsx", Jan–Ago/26): 163
+  lançamentos + 28 componentes de salário + 83 fixas + 89 itens de cofrinho + 88 de aluguel.
+  Categoria "." → "Livre"; "Faltam"="2x" → parcelado com 1 parcela restante; linhas sem valor
+  preenchido na planilha foram ignoradas; reembolsos "Pessoa=Mãe" no Santander do Kelvin foram
+  importados **sem** valor de reembolso (campo vazio, conforme decisão do usuário).
+- **🔴 Incidente grave durante a importação** (corrigido no mesmo dia): um bug em
+  `_load_sheet_raw` (Postgres) engolia qualquer erro de conexão e retornava tabela vazia; como
+  `save_sheet` usa essa leitura para preservar as linhas de OUTRAS contas ao regravar a tabela
+  inteira, uma falha de conexão transiente (durante um script que fazia ~900 escritas em
+  sequência) fez a função "achar" que não havia dados do Kelvin e **apagou toda a tabela
+  `lancamentos` dele**. Causa raiz corrigida: agora só retorna vazio quando a tabela realmente
+  não existe; qualquer outro erro propaga (`raise`) em vez de ser silenciado. Recuperação:
+  restaurado de `data/backups/financeiro_20260625_050353.xlsx` (531 linhas, ids originais
+  preservados) + reaplicadas as correções de bandeira Itaú (Jul/Ago) e do grupo "Presente Zara"
+  manualmente a partir dos scripts já usados nesta sessão. **Confirmado com o usuário: nenhuma
+  edição feita diretamente no app fora desta conversa foi perdida.** Lição: o Supabase Free não
+  tem backup nativo (ver §11) — qualquer script que faça muitas escritas em sequência no Postgres
+  deve gravar cada tabela **uma única vez** (montar tudo em memória primeiro), não fazer uma
+  escrita por item, tanto por performance quanto para reduzir a janela de exposição a esse tipo
+  de falha.
+
 ---
 
 ## 11. Pendências / ideias futuras
@@ -300,6 +337,9 @@ Sem `DATABASE_URL`, usa o Excel local. Acesse http://localhost:8501.
   Itaú — o usuário disse que vai revisar manualmente.
 - [ ] Há um par de lançamentos "Dux" (R$ 46,34 cada) em Agosto/26 marcados como Visa por decisão
   do usuário (ambíguo entre os dois) — ele vai corrigir manualmente qual é Mastercard.
+- [ ] **Considerar upgrade do plano Supabase (Pro) para ter backups automáticos/PITR** — o Free
+  não tem nenhum backup nativo (ver incidente na Sprint 11 abaixo). Sem isso, qualquer bug de
+  escrita no banco é irrecuperável exceto por backups locais manuais.
 
 ---
 
@@ -350,4 +390,14 @@ Sem `DATABASE_URL`, usa o Excel local. Acesse http://localhost:8501.
   credencial em linha de comando — vai para o histórico do shell); fazer backup local (JSON) do
   recorte afetado antes de aplicar; mostrar o mapeamento completo (id → mudança) para o usuário
   confirmar antes de gravar.
+- **NUNCA fazer uma escrita por item em loop contra o Postgres** (ex.: `for item in lista:
+  add_lancamento(...)`) — cada `save_sheet` faz um `to_sql(..., if_exists="replace")` (DROP +
+  CREATE + INSERT da tabela inteira). Centenas de escritas em sequência são lentas E aumentam a
+  janela de exposição a erros de conexão (já causou perda de dados real, ver Sprint 11). Sempre
+  montar a lista completa de linhas em memória e chamar `save_sheet` **uma única vez** por tabela.
+- **`_load_sheet_raw` nunca deve engolir exceções silenciosamente no Postgres** — ela alimenta a
+  lógica de `save_sheet` que decide quais linhas de outras contas preservar; tratar "erro de
+  leitura" como "tabela vazia" faz a próxima escrita apagar dados de quem não está sendo tocado.
+  Só retorna vazio quando a tabela genuinamente não existe (`has_table`); qualquer outro erro
+  deve propagar.
 </content>
