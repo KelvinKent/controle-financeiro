@@ -824,6 +824,10 @@ elif pagina == "Lançamentos":
                            "desta parcela** (não da compra inteira). Ao salvar, atualiza também "
                            "as próximas parcelas deste mesmo parcelamento.")
             else:
+                modo_valor = st.radio("O valor informado acima é", ["Valor total da compra", "Valor de cada parcela"],
+                    horizontal=True, key=f"{prefixo}_modo_valor",
+                    help="\"Valor total\" divide pelo nº de parcelas. \"Valor de cada parcela\" "
+                         "usa o número digitado direto, sem dividir.")
                 pp1, pp2 = st.columns(2)
                 total_parc = pp1.number_input("Total de parcelas", min_value=1, max_value=48,
                     value=int(d.get("total_parcelas") or 2), step=1, key=f"{prefixo}_parc")
@@ -833,9 +837,13 @@ elif pagina == "Lançamentos":
                 escolha_m = pp2.selectbox("Mês da 1ª parcela", labels_m, index=idx_mes, key=f"{prefixo}_mesinicio")
                 mes_inicio_parc = meses_disp[labels_m.index(escolha_m)]
                 if total_parc:
-                    vparc = valor / int(total_parc)
-                    st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
-                               f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
+                    if modo_valor == "Valor total da compra":
+                        vparc = valor / int(total_parc)
+                        st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
+                                   f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
+                    else:
+                        st.caption(f"💳 Cada parcela será de **R$ {valor:,.2f}** — "
+                                   f"**{int(total_parc)}x** (total R$ {valor * int(total_parc):,.2f}).")
 
         return {
             "cartao": cartao, "subtipo": subtipo, "valor": valor, "descricao": descricao,
@@ -845,6 +853,8 @@ elif pagina == "Lançamentos":
             "total_parc": total_parc,
             "mes_inicio_parc": mes_inicio_parc,
             "propagar_grupo": ja_era_parcela_existente,
+            "valor_eh_parcela": (tipo == "parcelado" and not ja_era_parcela_existente
+                                  and st.session_state.get(f"{prefixo}_modo_valor") == "Valor de cada parcela"),
         }
 
     def salvar_campos(campos):
@@ -853,9 +863,14 @@ elif pagina == "Lançamentos":
             return False
         if campos["tipo"] == "parcelado" and campos["total_parc"]:
             n_parc = int(campos["total_parc"])
-            # O valor informado é o TOTAL da compra → divide pelo nº de parcelas
-            valor_parc = round(campos["valor"] / n_parc, 2)
-            vt_parc = round(campos["val_pessoa"] / n_parc, 2) if campos["val_pessoa"] else None
+            if campos.get("valor_eh_parcela"):
+                # O valor informado já é o de CADA parcela → usa direto, sem dividir
+                valor_parc = round(campos["valor"], 2)
+                vt_parc = round(campos["val_pessoa"], 2) if campos["val_pessoa"] else None
+            else:
+                # O valor informado é o TOTAL da compra → divide pelo nº de parcelas
+                valor_parc = round(campos["valor"] / n_parc, 2)
+                vt_parc = round(campos["val_pessoa"] / n_parc, 2) if campos["val_pessoa"] else None
             gid = criar_grupo_parcelamento(
                 descricao=campos["descricao"], cartao=campos["cartao"],
                 subtipo_cartao=campos["subtipo"], categoria=campos["categoria"],
@@ -865,7 +880,7 @@ elif pagina == "Lançamentos":
             )
             ultimo = _proximo_mes(campos["mes_inicio_parc"], n_parc - 1)
             st.success(f"'{campos['descricao']}' criado em {n_parc}x de R$ {valor_parc:,.2f} "
-                       f"(total R$ {campos['valor']:,.2f}) até {ultimo}!")
+                       f"(total R$ {valor_parc * n_parc:,.2f}) até {ultimo}!")
         else:
             add_lancamento(
                 mes_ano=mes, cartao=campos["cartao"], dono="Kelvin",
