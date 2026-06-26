@@ -840,10 +840,10 @@ elif pagina == "Lançamentos":
                     if modo_valor == "Valor total da compra":
                         vparc = valor / int(total_parc)
                         st.caption(f"💳 Informe o **valor total** acima — serão **{int(total_parc)}x de "
-                                   f"R$ {vparc:,.2f}** (total R$ {valor:,.2f}).")
+                                   f"R\\$ {vparc:,.2f}** (total R\\$ {valor:,.2f}).")
                     else:
-                        st.caption(f"💳 Cada parcela será de **R$ {valor:,.2f}** — "
-                                   f"**{int(total_parc)}x** (total R$ {valor * int(total_parc):,.2f}).")
+                        st.caption(f"💳 Cada parcela será de **R\\$ {valor:,.2f}** — "
+                                   f"**{int(total_parc)}x** (total R\\$ {valor * int(total_parc):,.2f}).")
 
         return {
             "cartao": cartao, "subtipo": subtipo, "valor": valor, "descricao": descricao,
