@@ -47,20 +47,47 @@ _SCHEMA = {
     "lancamentos": ["id", "mes_ano", "cartao", "dono", "valor", "descricao",
                     "categoria", "valor_thais", "pessoa_thais", "tipo_parcela",
                     "parcela_atual", "total_parcelas", "id_grupo", "subtipo_cartao",
-                    "data_lancamento", "conferido"],
-    "meses": ["mes_ano", "salario_kelvin", "salario_thais", "fechado"],
+                    "data_lancamento", "conferido", "usuario"],
+    "meses": ["mes_ano", "salario_kelvin", "salario_thais", "fechado", "usuario"],
     "fixos": ["id", "cartao", "descricao", "categoria", "valor_estimado",
-              "pessoa_thais", "valor_thais", "ativo"],
+              "pessoa_thais", "valor_thais", "ativo", "usuario"],
     "grupos_parcelamento": ["id", "descricao", "cartao", "subtipo_cartao", "categoria",
                             "valor_parcela", "total_parcelas", "mes_inicio",
-                            "pessoa_thais", "valor_thais", "cancelado"],
-    "config": ["chave", "valor"],
-    "orcamentos": ["mes_ano", "categoria", "valor_planejado"],
+                            "pessoa_thais", "valor_thais", "cancelado", "usuario"],
+    "config": ["chave", "valor", "usuario"],
+    "orcamentos": ["mes_ano", "categoria", "valor_planejado", "usuario"],
     "painel": ["mes_ano", "agua_boleto", "youtube_lembrete", "spotify_lembrete",
-               "cdb_reserva", "previdencia"],
+               "cdb_reserva", "previdencia", "usuario"],
 }
 
+# Tabelas multi-usuário: cada conta (Kelvin, Mãe...) só vê suas próprias linhas.
+# "usuario" não entra em queries por id (ids são globalmente únicos, ver _next_id).
+_TABELAS_COM_USUARIO = set(_SCHEMA.keys())
+
 SHEETS = ["lancamentos", "meses", "fixos", "config"]
+
+# ── Multi-usuário ──────────────────────────────────────────────────────────────
+# Conta atualmente logada (definida pelo app.py após autenticação). "kelvin" é o
+# padrão/legado — todos os dados existentes antes da Sprint 11 pertencem a ele.
+_usuario_atual = "kelvin"
+
+
+def set_usuario_atual(usuario: str):
+    global _usuario_atual
+    _usuario_atual = usuario or "kelvin"
+
+
+def get_usuario_atual() -> str:
+    return _usuario_atual
+
+
+def _next_id(sheet_name: str) -> int:
+    """Próximo id, único entre TODAS as contas (evita colisão nas tabelas
+    onde update/delete por id usa SQL direto sem filtrar por usuário)."""
+    df = _load_sheet_raw(sheet_name)
+    if df.empty or "id" not in df.columns or pd.isna(df["id"].max()):
+        return 1
+    return int(df["id"].max()) + 1
 
 CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Reforma", "Negócios", "Metinha", "Livre"]
 CARTOES = ["Santander", "Itaú", "C6"]
@@ -96,8 +123,8 @@ def init_db():
         for nome, cols in _SCHEMA.items():
             if nome == "config":
                 continue
-            save_sheet(nome, pd.DataFrame(columns=cols))
-        save_sheet("config", pd.DataFrame(_CONFIG_PADRAO))
+            _write_sheet_raw(nome, pd.DataFrame(columns=cols))
+        _write_sheet_raw("config", pd.DataFrame([{**c, "usuario": _usuario_atual} for c in _CONFIG_PADRAO]))
         return
 
     wb = Workbook()
@@ -107,31 +134,52 @@ def init_db():
         ws.append(cols)
         if nome == "config":
             for c in _CONFIG_PADRAO:
-                ws.append([c["chave"], c["valor"]])
+                ws.append([c["chave"], c["valor"], _usuario_atual])
     wb.save(DB_PATH)
 
 
-def load_sheet(sheet_name: str) -> pd.DataFrame:
+def _ensure_usuario_coluna_postgres(sheet_name: str):
+    """Migração: garante a coluna `usuario` em tabelas Postgres antigas, preenchendo
+    as linhas pré-existentes com 'kelvin' (todo dado anterior à conta da Mãe)."""
+    from sqlalchemy import text, inspect as _sa_inspect2
+    cols = [c["name"] for c in _sa_inspect2(_engine).get_columns(sheet_name)]
+    if "usuario" in cols:
+        return
+    with _engine.begin() as conn:
+        conn.execute(text(f'ALTER TABLE "{sheet_name}" ADD COLUMN usuario TEXT'))
+        conn.execute(text(f'UPDATE "{sheet_name}" SET usuario = \'kelvin\' WHERE usuario IS NULL'))
+
+
+def _load_sheet_raw(sheet_name: str) -> pd.DataFrame:
+    """Lê a tabela inteira, sem filtrar por usuário (uso interno)."""
     if USE_POSTGRES:
         try:
+            if sheet_name in _TABELAS_COM_USUARIO and _sa_inspect(_engine).has_table(sheet_name):
+                _ensure_usuario_coluna_postgres(sheet_name)
             return pd.read_sql_table(sheet_name, _engine)
         except Exception:
             return pd.DataFrame()
     if not db_exists():
         return pd.DataFrame()
     try:
-        return pd.read_excel(DB_PATH, sheet_name=sheet_name, engine="openpyxl")
+        df = pd.read_excel(DB_PATH, sheet_name=sheet_name, engine="openpyxl")
+        if sheet_name in _TABELAS_COM_USUARIO and "usuario" not in df.columns:
+            df["usuario"] = "kelvin"
+        return df
     except ValueError:
         return pd.DataFrame()
 
 
-def save_sheet(sheet_name: str, df: pd.DataFrame):
+def _write_sheet_raw(sheet_name: str, df: pd.DataFrame):
+    """Escreve a tabela inteira (já com todas as contas), sem reaplicar filtro."""
     if USE_POSTGRES:
         df.to_sql(sheet_name, _engine, if_exists="replace", index=False)
         return
-    wb = load_workbook(DB_PATH)
+    wb = load_workbook(DB_PATH) if DB_PATH.exists() else Workbook()
     if sheet_name in wb.sheetnames:
         del wb[sheet_name]
+    elif "Sheet" in wb.sheetnames and len(wb.sheetnames) == 1:
+        wb.remove(wb["Sheet"])
     ws = wb.create_sheet(sheet_name)
     ws.append(list(df.columns))
     for row in df.itertuples(index=False):
@@ -139,10 +187,41 @@ def save_sheet(sheet_name: str, df: pd.DataFrame):
     wb.save(DB_PATH)
 
 
+def load_sheet(sheet_name: str) -> pd.DataFrame:
+    df = _load_sheet_raw(sheet_name)
+    if sheet_name in _TABELAS_COM_USUARIO and not df.empty and "usuario" in df.columns:
+        df = df[df["usuario"] == _usuario_atual].copy()
+    return df
+
+
+def save_sheet(sheet_name: str, df: pd.DataFrame):
+    """Recebe o conteúdo COMPLETO da conta atual para essa tabela (resultado de um
+    load_sheet anterior, possivelmente modificado) e regrava preservando as linhas
+    das demais contas, que não passam por aqui."""
+    if sheet_name not in _TABELAS_COM_USUARIO:
+        _write_sheet_raw(sheet_name, df)
+        return
+    df = df.copy()
+    df["usuario"] = _usuario_atual
+    outros = _load_sheet_raw(sheet_name)
+    if not outros.empty and "usuario" in outros.columns:
+        outros = outros[outros["usuario"] != _usuario_atual]
+    else:
+        outros = outros.iloc[0:0]
+    final = pd.concat([outros, df], ignore_index=True) if not outros.empty else df
+    _write_sheet_raw(sheet_name, final)
+
+
 def get_config() -> dict:
     df = load_sheet("config")
     if df.empty:
-        return {}
+        # Primeira vez dessa conta (ex.: Mãe logando antes de qualquer init_db
+        # específico) — semeia a config padrão para não cair em todos os defaults
+        # silenciosamente em todo lugar que usa cfg.get(...).
+        save_sheet("config", pd.DataFrame(_CONFIG_PADRAO))
+        df = load_sheet("config")
+        if df.empty:
+            return {}
     return dict(zip(df["chave"], df["valor"]))
 
 
@@ -227,7 +306,7 @@ def add_lancamento(mes_ano, cartao, dono, valor, descricao, categoria,
         df["conferido"] = False
     if data_lancamento is None:
         data_lancamento = _date.today().isoformat()
-    novo_id = int(df["id"].max() + 1) if not df.empty and not pd.isna(df["id"].max()) else 1
+    novo_id = _next_id("lancamentos")
     novo = {
         "id": novo_id, "mes_ano": mes_ano, "cartao": cartao, "dono": dono,
         "valor": valor, "descricao": descricao, "categoria": categoria,
@@ -247,7 +326,7 @@ def add_lancamentos_bulk(rows: list) -> int:
     if not rows:
         return 0
     df = load_sheet("lancamentos")
-    start_id = int(df["id"].max()) + 1 if not df.empty and not pd.isna(df["id"].max()) else 1
+    start_id = _next_id("lancamentos")
     prep = []
     for i, r in enumerate(rows):
         novo = {c: None for c in _SCHEMA["lancamentos"]}
@@ -374,7 +453,7 @@ def criar_grupo_parcelamento(
         df_g = pd.DataFrame(columns=["id", "descricao", "cartao", "subtipo_cartao",
                                       "categoria", "valor_parcela", "total_parcelas",
                                       "mes_inicio", "pessoa_thais", "valor_thais", "cancelado"])
-    novo_gid = int(df_g["id"].max() + 1) if not df_g.empty and not pd.isna(df_g["id"].max()) else 1
+    novo_gid = _next_id("grupos_parcelamento")
     novo_g = {
         "id": novo_gid, "descricao": descricao, "cartao": cartao,
         "subtipo_cartao": subtipo_cartao, "categoria": categoria,
@@ -452,8 +531,11 @@ def update_lancamento(lancamento_id: int, **campos):
         sets = ", ".join(f'"{c}" = :{c}' for c in cols)
         params = {c: campos[c] for c in cols}
         params["_id"] = int(lancamento_id)
+        params["_usuario"] = _usuario_atual
         with _engine.begin() as conn:
-            conn.execute(text(f'UPDATE lancamentos SET {sets} WHERE id = :_id'), params)
+            conn.execute(text(
+                f'UPDATE lancamentos SET {sets} WHERE id = :_id AND usuario = :_usuario'
+            ), params)
         return
     df = load_sheet("lancamentos")
     for col, val in campos.items():
@@ -478,11 +560,11 @@ def propagar_parcela_grupo(id_grupo: int, mes_ano_de: str, **campos) -> int:
     if USE_POSTGRES:
         from sqlalchemy import text
         sets = ", ".join(f'"{c}" = :{c}' for c in campos)
-        params = {**campos, "_grupo": int(id_grupo), "_mes": mes_ano_de}
+        params = {**campos, "_grupo": int(id_grupo), "_mes": mes_ano_de, "_usuario": _usuario_atual}
         with _engine.begin() as conn:
             conn.execute(text(
                 f'UPDATE lancamentos SET {sets} WHERE id_grupo = :_grupo AND mes_ano >= :_mes '
-                f"AND tipo_parcela IN ('parcelado', 'ULTIMA')"
+                f"AND tipo_parcela IN ('parcelado', 'ULTIMA') AND usuario = :_usuario"
             ), params)
     else:
         for col, val in campos.items():
@@ -507,7 +589,8 @@ def delete_lancamento(lancamento_id: int):
     if USE_POSTGRES:
         from sqlalchemy import text
         with _engine.begin() as conn:
-            conn.execute(text("DELETE FROM lancamentos WHERE id = :_id"), {"_id": int(lancamento_id)})
+            conn.execute(text("DELETE FROM lancamentos WHERE id = :_id AND usuario = :_usuario"),
+                         {"_id": int(lancamento_id), "_usuario": _usuario_atual})
         return
     df = load_sheet("lancamentos")
     df = df[df["id"] != lancamento_id]

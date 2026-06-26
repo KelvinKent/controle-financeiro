@@ -16,7 +16,7 @@ from modules.db import (
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
     fazer_backup, listar_backups, update_fixo, delete_fixo,
     get_painel, set_painel, calcular_painel, add_lancamentos_bulk, set_mes_fechado,
-    get_meses_fechados, propagar_parcela_grupo,
+    get_meses_fechados, propagar_parcela_grupo, set_usuario_atual, get_usuario_atual,
 )
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -119,30 +119,60 @@ st.html("""
 """)
 
 
-def _check_password() -> bool:
-    """Gate de autenticação. Ativo apenas quando APP_PASSWORD está definida
-    (variável de ambiente ou st.secrets). Em ambiente local sem senha, libera."""
+# Contas suportadas: id interno -> (nome de exibição, variável de ambiente/secrets da senha).
+# Para adicionar uma nova conta (ex.: outro parente), basta acrescentar uma entrada aqui
+# e cadastrar a respectiva senha (ver _ler_senha) — os dados de cada conta ficam isolados
+# automaticamente (modules/db.py filtra tudo pela coluna "usuario").
+_CONTAS = {
+    "kelvin": {"nome": "Kelvin", "env": "APP_PASSWORD"},
+    "mae": {"nome": "Mãe", "env": "APP_PASSWORD_MAE"},
+}
+
+
+def _ler_senha(env_key: str) -> str:
     import os as _os
-    senha_correta = _os.environ.get("APP_PASSWORD", "")
-    if not senha_correta:
+    v = _os.environ.get(env_key, "")
+    if not v:
         try:
-            senha_correta = st.secrets["APP_PASSWORD"]
+            v = st.secrets[env_key]
         except Exception:
-            senha_correta = ""
-    # Sem senha configurada → acesso livre (uso local)
-    if not senha_correta:
-        return True
-    if st.session_state.get("_autenticado"):
+            v = ""
+    return v
+
+
+def _check_password() -> bool:
+    """Gate de autenticação multi-conta. Cada conta em _CONTAS tem sua própria senha
+    (variável de ambiente ou st.secrets). Conta sem senha configurada fica indisponível
+    para login (exceto Kelvin: se nenhuma senha estiver configurada, libera direto, para
+    manter o uso local sem senha como antes)."""
+    senhas = {uid: _ler_senha(c["env"]) for uid, c in _CONTAS.items()}
+
+    # Nenhuma senha configurada em lugar nenhum → acesso livre como Kelvin (uso local).
+    if not any(senhas.values()):
+        set_usuario_atual("kelvin")
         return True
 
+    if st.session_state.get("_autenticado"):
+        set_usuario_atual(st.session_state.get("_usuario", "kelvin"))
+        return True
+
+    contas_disponiveis = [uid for uid, s in senhas.items() if s]
     st.markdown("<div style='max-width:380px;margin:8vh auto 0'>", unsafe_allow_html=True)
     st.markdown("### 🔒 Controle Financeiro")
-    st.caption("Acesso restrito. Informe a senha para continuar.")
+    st.caption("Acesso restrito. Selecione a conta e informe a senha para continuar.")
+    if len(contas_disponiveis) > 1:
+        usuario_sel = st.selectbox(
+            "Conta", contas_disponiveis,
+            format_func=lambda uid: _CONTAS[uid]["nome"],
+        )
+    else:
+        usuario_sel = contas_disponiveis[0]
     senha = st.text_input("Senha", type="password", label_visibility="collapsed",
                           placeholder="Senha de acesso")
     if senha:
-        if senha == senha_correta:
+        if senha == senhas.get(usuario_sel):
             st.session_state["_autenticado"] = True
+            st.session_state["_usuario"] = usuario_sel
             st.rerun()
         else:
             st.error("Senha incorreta.")
@@ -167,6 +197,13 @@ if not db_exists():
             st.stop()
 
 meses_disponiveis = get_meses()
+
+if not meses_disponiveis:
+    # Conta nova (ex.: Mãe no primeiro acesso) sem nenhum mês cadastrado ainda —
+    # cria o mês atual para a tela não ficar vazia/quebrada.
+    _hoje = date.today()
+    upsert_mes(f"{_hoje.year}-{_hoje.month:02d}", 0.0, 0.0)
+    meses_disponiveis = get_meses()
 
 # Backup automático diário — uma vez por sessão
 if db_exists() and not st.session_state.get("_backup_feito"):
@@ -197,8 +234,11 @@ with st.sidebar:
     pagina = st.radio("Navegação", ["Dashboard", "Histórico", "Lançamentos", "Parcelamentos", "Fixos", "Importar", "Configurações"], label_visibility="collapsed", key="nav_pagina")
     if st.session_state.get("_autenticado"):
         st.divider()
+        st.caption(f"Conectado como **{_CONTAS.get(get_usuario_atual(), {}).get('nome', 'Kelvin')}**")
         if st.button("🚪 Sair", use_container_width=True):
             st.session_state["_autenticado"] = False
+            st.session_state.pop("_usuario", None)
+            st.session_state.pop("mes_selecionado", None)
             st.rerun()
 
 mes = st.session_state.mes_selecionado
