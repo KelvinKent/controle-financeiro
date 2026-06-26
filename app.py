@@ -698,29 +698,26 @@ elif pagina == "Lançamentos":
 
     # Resolve cliques nos cards de "Totais por cartão" ANTES de criar os widgets de
     # filtro (a key de um widget não pode ser escrita depois de instanciado no mesmo run).
+    # Clicar num card SUBSTITUI o filtro pelo card clicado (não acumula); clicar de novo
+    # no card já ativo limpa o filtro.
     _toggle = st.session_state.pop("_toggle_cartao_request", None)
     if _toggle is not None:
         c_tog, sub_tog = _toggle
-        cartao_set = list(st.session_state.get("lanc_filtro_cartao", []))
         sub_key = SUBTIPO_FILTRO_KEY.get(c_tog)
-        subtipo_set = list(st.session_state.get(sub_key, [])) if sub_key else []
-        if sub_tog:
-            if sub_tog in subtipo_set:
-                subtipo_set.remove(sub_tog)
-                if c_tog in cartao_set and not subtipo_set:
-                    cartao_set.remove(c_tog)
-            else:
-                subtipo_set.append(sub_tog)
-                if c_tog not in cartao_set:
-                    cartao_set.append(c_tog)
+        subtipo_atual_do_clicado = list(st.session_state.get(sub_key, [])) if sub_key else []
+        ja_era_unico_selecionado = (
+            list(st.session_state.get("lanc_filtro_cartao", [])) == [c_tog]
+            and ((sub_tog is None and not subtipo_atual_do_clicado)
+                 or (sub_tog is not None and subtipo_atual_do_clicado == [sub_tog]))
+        )
+        if ja_era_unico_selecionado:
+            st.session_state["lanc_filtro_cartao"] = []
+            st.session_state["lanc_filtro_subtipo"] = []
+            st.session_state["lanc_filtro_subtipo_itau"] = []
         else:
-            if c_tog in cartao_set:
-                cartao_set.remove(c_tog)
-            else:
-                cartao_set.append(c_tog)
-        st.session_state["lanc_filtro_cartao"] = cartao_set
-        if sub_key:
-            st.session_state[sub_key] = subtipo_set
+            st.session_state["lanc_filtro_cartao"] = [c_tog]
+            st.session_state["lanc_filtro_subtipo"] = [sub_tog] if sub_key == "lanc_filtro_subtipo" else []
+            st.session_state["lanc_filtro_subtipo_itau"] = [sub_tog] if sub_key == "lanc_filtro_subtipo_itau" else []
 
     col_title, col_fixos = st.columns([3, 1])
     col_title.title(f"Lançamentos — {mes_label}")
@@ -729,7 +726,9 @@ elif pagina == "Lançamentos":
         if st.button("📌 Aplicar fixos do mês", use_container_width=True):
             n = aplicar_fixos_ao_mes(mes)
             st.success(f"{n} fixo(s) adicionado(s)!" if n > 0 else "Todos os fixos já estão neste mês.")
-            st.rerun()
+            # Sem st.rerun(): os widgets de filtro só são criados depois, mais abaixo no
+            # script — rerodar aqui descartaria o estado deles (filtro "sumia" ao salvar).
+            # O restante do script já reflete os dados atualizados nesta mesma execução.
 
     if "editando_id" not in st.session_state:
         st.session_state.editando_id = None
@@ -893,6 +892,21 @@ elif pagina == "Lançamentos":
             st.success(f"Lançamento '{campos['descricao']}' salvo!")
         return True
 
+    # ── Filtros ──────────────────────────────────────────────────────────────
+    # (vem ANTES do "Novo lançamento" propositalmente: o botão Salvar chama
+    # st.rerun() e, se os filtros fossem instanciados só depois, o Streamlit
+    # descartaria o estado deles nesse ciclo abortado — fazendo o filtro "sumir"
+    # toda vez que um lançamento era salvo.)
+    st.markdown("#### Filtrar")
+    fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2, 2, 1.3, 1.3, 1.3, 1.3])
+    filtro_cat = fc1.multiselect("Categoria", CATEGORIAS, key="lanc_filtro_cat")
+    filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"], key="lanc_filtro_tipo")
+    filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
+    filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER, key="lanc_filtro_subtipo")
+    filtro_subtipo_itau = fc5.multiselect("Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
+    filtro_ordem = fc6.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
+    busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
+
     # ── Novo lançamento (sem st.form → checkbox reativo) ──────────────────────
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
@@ -901,17 +915,6 @@ elif pagina == "Lançamentos":
             if salvar_campos(campos):
                 st.session_state.form_novo_ver = ver + 1
                 st.rerun()
-
-    # ── Filtros ───────────────────────────────────────────────────────────────
-    st.markdown("#### Filtrar")
-    fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2, 2, 1.3, 1.3, 1.3, 1.3])
-    filtro_cat = fc1.multiselect("Categoria", CATEGORIAS)
-    filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"])
-    filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
-    filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER, key="lanc_filtro_subtipo")
-    filtro_subtipo_itau = fc5.multiselect("Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
-    filtro_ordem = fc6.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"])
-    busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...")
 
     lanc = get_lancamentos(mes)
     if "subtipo_cartao" not in lanc.columns:
