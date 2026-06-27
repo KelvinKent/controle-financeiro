@@ -319,8 +319,8 @@ if pagina == "Dashboard":
     if _usuario_mae:
         col1, col3 = st.columns([1, 2])
         with col1:
-            novo_sal_k = st.number_input("Salário (R$)", value=sal_k, min_value=0.0,
-                step=100.0, format="%.2f", key="sal_k")
+            novo_sal_k = st.number_input(f"Salário {cfg.get('nome_kelvin','Rita')} (R$)",
+                value=sal_k, min_value=0.0, step=100.0, format="%.2f", key="sal_k")
         novo_sal_t = 0.0
         with col3:
             st.write(""); st.write("")
@@ -491,7 +491,7 @@ if pagina == "Dashboard":
 
     if _usuario_mae:
         c1, c3 = st.columns(2)
-        c1.html(_card("Salário", f"R$ {sal_k:,.0f}"))
+        c1.html(_card(f"Salário {cfg.get('nome_kelvin','Rita')}", f"R$ {sal_k:,.0f}"))
         c3.html(_card("Total gasto", f"R$ {total:,.0f}"))
     else:
         c1, c2, c3 = st.columns(3)
@@ -1888,28 +1888,38 @@ elif pagina == "Configurações":
     cfg = get_config()
 
     # ── Nomes e divisão ───────────────────────────────────────────────────────
-    st.markdown("#### Perfil")
-    cn1, cn2 = st.columns(2)
-    nome_k = cn1.text_input("Seu nome", value=cfg.get("nome_kelvin", "Kelvin"))
-    nome_t = cn2.text_input("Nome do(a) parceiro(a)", value=cfg.get("nome_thais", "Thais"))
+    # Conta da Mãe não tem "parceiro(a)" nem divisão de despesas compartilhadas —
+    # é só o nome dela mesma, usado no rótulo do salário no Dashboard.
+    if get_usuario_atual() == "mae":
+        st.markdown("#### Perfil")
+        nome_k = st.text_input("Seu nome", value=cfg.get("nome_kelvin", "Rita"))
+        if st.button("💾 Salvar nome"):
+            set_config("nome_kelvin", nome_k)
+            st.success("Nome salvo!")
+            st.rerun()
+    else:
+        st.markdown("#### Perfil")
+        cn1, cn2 = st.columns(2)
+        nome_k = cn1.text_input("Seu nome", value=cfg.get("nome_kelvin", "Kelvin"))
+        nome_t = cn2.text_input("Nome do(a) parceiro(a)", value=cfg.get("nome_thais", "Thais"))
 
-    st.markdown("#### Divisão de despesas compartilhadas")
-    cd1, cd2 = st.columns(2)
-    div_k = cd1.number_input(f"% de {nome_k}", min_value=0, max_value=100,
-                              value=int(cfg.get("divisao_kelvin", 80)), step=1)
-    div_t = cd2.number_input(f"% de {nome_t}", min_value=0, max_value=100,
-                              value=int(cfg.get("divisao_thais", 20)), step=1)
+        st.markdown("#### Divisão de despesas compartilhadas")
+        cd1, cd2 = st.columns(2)
+        div_k = cd1.number_input(f"% de {nome_k}", min_value=0, max_value=100,
+                                  value=int(cfg.get("divisao_kelvin", 80)), step=1)
+        div_t = cd2.number_input(f"% de {nome_t}", min_value=0, max_value=100,
+                                  value=int(cfg.get("divisao_thais", 20)), step=1)
 
-    if div_k + div_t != 100:
-        st.warning(f"A soma deve ser 100%. Atualmente: {div_k + div_t}%")
+        if div_k + div_t != 100:
+            st.warning(f"A soma deve ser 100%. Atualmente: {div_k + div_t}%")
 
-    if st.button("💾 Salvar configurações", disabled=(div_k + div_t != 100)):
-        set_config("nome_kelvin", nome_k)
-        set_config("nome_thais", nome_t)
-        set_config("divisao_kelvin", div_k)
-        set_config("divisao_thais", div_t)
-        st.success("Configurações salvas!")
-        st.rerun()
+        if st.button("💾 Salvar configurações", disabled=(div_k + div_t != 100)):
+            set_config("nome_kelvin", nome_k)
+            set_config("nome_thais", nome_t)
+            set_config("divisao_kelvin", div_k)
+            set_config("divisao_thais", div_t)
+            st.success("Configurações salvas!")
+            st.rerun()
 
     # ── Criar meses futuros (previsão) ────────────────────────────────────────
     st.divider()
