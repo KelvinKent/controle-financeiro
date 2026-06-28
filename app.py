@@ -771,11 +771,11 @@ elif pagina == "Lançamentos":
             st.session_state["lanc_filtro_subtipo"] = [sub_tog] if sub_key == "lanc_filtro_subtipo" else []
             st.session_state["lanc_filtro_subtipo_itau"] = [sub_tog] if sub_key == "lanc_filtro_subtipo_itau" else []
 
-    col_title, col_fixos = st.columns([3, 1])
+    col_title, col_fixos = st.columns([4, 1])
     col_title.title(f"Lançamentos — {mes_label}")
     with col_fixos:
         st.write("")
-        if st.button("📌 Aplicar fixos do mês", use_container_width=True):
+        if st.button("📌 Fixos", use_container_width=True, help="Aplicar fixos do mês"):
             n = aplicar_fixos_ao_mes(mes)
             st.success(f"{n} fixo(s) adicionado(s)!" if n > 0 else "Todos os fixos já estão neste mês.")
             # Sem st.rerun(): os widgets de filtro só são criados depois, mais abaixo no
@@ -1023,22 +1023,23 @@ elif pagina == "Lançamentos":
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
+        # CSS para o botão de filtro invisível sob cada card
+        st.markdown("""<style>
+            .card-btn-wrap button[kind="secondary"] {
+                position:relative; margin-top:-8px; width:100%;
+                background:transparent !important; border:none !important;
+                color:rgba(255,255,255,0) !important; height:8px !important;
+                padding:0 !important; cursor:pointer !important;
+            }
+        </style>""", unsafe_allow_html=True)
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
-            cor = CARTAO_COR.get((c, sub_s), CARTAO_COR.get((c, None), "#444"))
-            label_banco = f"{c} {sub_s}" if sub_s else c
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             with cols_cards[i]:
-                st.markdown(f'<span class="card-anchor-{i}"></span>', unsafe_allow_html=True)
-                clicado = st.button(f"{label_banco}\nR$ {tot:,.2f}", key=f"cardbtn_cartao_{i}",
-                                     use_container_width=True)
-                anel = "0 0 0 2px #fff inset" if ativo else "none"
-                st.markdown(f"""<style>
-                    span.card-anchor-{i} + div button {{
-                        background:{cor} !important; color:#fff !important; border:none !important;
-                        box-shadow:{anel}; font-weight:700 !important; white-space:pre-line !important;
-                        line-height:1.3 !important;
-                    }}
-                </style>""", unsafe_allow_html=True)
+                st.html(card_cartao(c, tot, sub_s, ativo=ativo))
+                st.markdown('<div class="card-btn-wrap">', unsafe_allow_html=True)
+                clicado = st.button("f", key=f"cardbtn_cartao_{i}", use_container_width=True,
+                                    help=f"Filtrar por {c}{' ' + sub_s if sub_s else ''}")
+                st.markdown('</div>', unsafe_allow_html=True)
             if clicado:
                 st.session_state["_toggle_cartao_request"] = (c, sub_s)
                 st.rerun()
