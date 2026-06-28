@@ -1023,23 +1023,22 @@ elif pagina == "Lançamentos":
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
-        # CSS para o botão de filtro invisível sob cada card
-        st.markdown("""<style>
-            .card-btn-wrap button[kind="secondary"] {
-                position:relative; margin-top:-8px; width:100%;
-                background:transparent !important; border:none !important;
-                color:rgba(255,255,255,0) !important; height:8px !important;
-                padding:0 !important; cursor:pointer !important;
-            }
-        </style>""", unsafe_allow_html=True)
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
+            label_banco = f"{c} {sub_s}" if sub_s else c
             with cols_cards[i]:
                 st.html(card_cartao(c, tot, sub_s, ativo=ativo))
-                st.markdown('<div class="card-btn-wrap">', unsafe_allow_html=True)
-                clicado = st.button("f", key=f"cardbtn_cartao_{i}", use_container_width=True,
-                                    help=f"Filtrar por {c}{' ' + sub_s if sub_s else ''}")
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.markdown(f'<span class="card-anchor-{i}"></span>', unsafe_allow_html=True)
+                clicado = st.button(" ", key=f"cardbtn_cartao_{i}", use_container_width=True,
+                                    help=f"Filtrar: {label_banco}")
+                st.markdown(f"""<style>
+                    span.card-anchor-{i} + div button {{
+                        position:relative; margin-top:-88px; height:80px;
+                        background:transparent !important; border:none !important;
+                        color:transparent !important; cursor:pointer !important;
+                        box-shadow:none !important;
+                    }}
+                </style>""", unsafe_allow_html=True)
             if clicado:
                 st.session_state["_toggle_cartao_request"] = (c, sub_s)
                 st.rerun()
