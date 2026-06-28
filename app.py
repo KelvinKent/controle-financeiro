@@ -19,6 +19,11 @@ from modules.db import (
     get_meses_fechados, propagar_parcela_grupo, set_usuario_atual, get_usuario_atual,
     get_controles_extra, add_controle_extra, delete_controle_extra,
 )
+from modules.fc_components import (
+    inject_base_css, row_actions_css, bank_badge, hero_saldo,
+    painel_resumo, painel_grid, lancamento_header, lancamento_row, card_cartao,
+    CARTAO_COR,
+)
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
              "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
@@ -49,27 +54,6 @@ class _MesLabels:
 MES_LABELS = _MesLabels()
 
 
-CORES_BANDEIRA_ITAU = {"Visa": "#1A1F71", "Mastercard": "#EB001B", "LATAM Pass": "#00128C"}
-
-
-def badge_cartao(cartao: str, subtipo: str = None) -> str:
-    if cartao == "Itaú":
-        bg, fg, label = "#FF6B00", "#ffffff", "Itaú"
-    elif cartao == "C6":
-        bg, fg, label = "#000000", "#ffffff", "C6"
-    elif cartao == "Santander" and subtipo == "Físico":
-        bg, fg, label = "#A80000", "#ffffff", "Santander Físico"
-    else:
-        bg, fg, label = "#EC0000", "#ffffff", "Santander"
-    s = (f"background:{bg};color:{fg};padding:2px 8px;border-radius:4px;"
-         f"font-size:12px;font-weight:600;display:inline-block;white-space:nowrap")
-    html = f'<span style="{s}">{label}</span>'
-    if cartao == "Itaú" and subtipo in CORES_BANDEIRA_ITAU:
-        bb = CORES_BANDEIRA_ITAU[subtipo]
-        bs = (f"background:{bb};color:#ffffff;padding:2px 7px;border-radius:4px;"
-              f"font-size:11px;font-weight:700;display:inline-block;white-space:nowrap;margin-left:4px")
-        html += f'<span style="{bs}">{subtipo}</span>'
-    return html
 
 
 def _fmt_desc(desc) -> str:
@@ -138,21 +122,13 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Tema centralizado: classes reutilizadas pelos blocos de HTML do app ──────
-# (em vez de repetir os mesmos estilos inline em cada f-string)
+# ── Tema centralizado via design system (fc_components) ──────────────────────
+inject_base_css()
+st.html(row_actions_css())
 st.html("""
 <style>
-  .fc-box { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; margin-bottom:12px; }
-  .fc-hdr { background:#1a1a2e; color:#fff; padding:6px 12px; font-size:12px; font-weight:700;
-            text-align:center; text-transform:uppercase; letter-spacing:.5px; }
   .fc-card-label { font-size:13px; color:#aaa; margin-bottom:4px; }
   .fc-card-value { font-size:1.4rem; font-weight:700; }
-  .fc-hero { border-left:4px solid #21c354; border-radius:10px; background:rgba(255,255,255,0.04);
-             padding:18px 22px; margin-bottom:18px; }
-  .fc-hero.is-negative { border-left-color:#ff5b5b; }
-  .fc-hero-label { font-size:13px; color:#aaa; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-  .fc-hero-value { font-size:2.4rem; font-weight:800; line-height:1.1; }
-  .fc-hero-nota { font-size:13px; margin-top:6px; }
 </style>
 """)
 
@@ -367,85 +343,45 @@ if pagina == "Dashboard":
     # (grid "Resumo do mês" + o expander de edição) é pulado para ela.
     pin = calcular_painel(mes) if get_usuario_atual() != "mae" else None
 
-    def _br(v):
-        return "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-    def _val_dif(v):
-        cor = "#ff5b5b" if v < 0 else "#21c354"
-        sinal = "-" if v < 0 else ""
-        return f'<span style="color:{cor};font-weight:700">{sinal}R$ {abs(v):,.2f}</span>'.replace(",", "X").replace(".", ",").replace("X", ".")
-
-    def _linha(label, valor, bold=False, neg_red=True, bg="transparent"):
-        w = "700" if bold else "500"
-        cor = "#ff5b5b" if (neg_red and valor < 0) else "#e8e8e8"
-        return (f'<tr style="border-bottom:1px solid rgba(255,255,255,0.06);background:{bg}">'
-                f'<td style="padding:6px 12px;font-size:13px;font-weight:{w}">{label}</td>'
-                f'<td style="padding:6px 12px;text-align:right;font-size:13px;font-weight:{w};color:{cor};white-space:nowrap">{_br(valor)}</td></tr>')
-
     if pin is not None:
-        painel_html = f"""
-        <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-          <div class="fc-box" style="flex:1;min-width:280px">
-            <div class="fc-hdr">{cfg.get('nome_kelvin','Kelvin')}</div>
-            <table style="width:100%;border-collapse:collapse">
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
-                <td style="padding:6px 12px;background:#2f6fd1;color:#fff;font-size:13px;font-weight:600">Salário</td>
-                <td style="padding:6px 12px;background:#2f6fd1;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_kelvin'])}</td>
-              </tr>
-              <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
-                <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_kelvin'])}</td></tr>
-            </table>
-          </div>
-          <div class="fc-box" style="flex:1;min-width:280px">
-            <div class="fc-hdr">{cfg.get('nome_thais','Thais')}</div>
-            <table style="width:100%;border-collapse:collapse">
-              <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
-                <td style="padding:6px 12px;background:#1e9e5a;color:#fff;font-size:13px;font-weight:600">Salário</td>
-                <td style="padding:6px 12px;background:#1e9e5a;color:#fff;text-align:right;font-weight:700">{_br(pin['salario_thais'])}</td>
-              </tr>
-              <tr><td style="padding:6px 12px;font-size:13px">Diferença</td>
-                <td style="padding:6px 12px;text-align:right">{_val_dif(pin['diferenca_thais'])}</td></tr>
-            </table>
-          </div>
-        </div>
-
-        <div style="font-family:inherit;display:flex;flex-wrap:wrap;gap:12px">
-          <div class="fc-box" style="flex:1;min-width:280px">
-            <div class="fc-hdr">Gastos + Pix</div>
-            <table style="width:100%;border-collapse:collapse">
-              {_linha('Cartão ' + cfg.get('nome_kelvin','Kelvin'), pin['cartao_kelvin'])}
-              {_linha('Cartão ' + cfg.get('nome_thais','Thais'), pin['cartao_thais'])}
-              {_linha('Pagamentos', pin['pagamentos'])}
-              {_linha('Água - Boleto', pin['agua_boleto'])}
-              {_linha('Mãe', pin['mae'])}
-              {_linha('Total', pin['total_gastos'], bold=True, bg='rgba(255,255,255,0.05)')}
-            </table>
-          </div>
-          <div class="fc-box" style="flex:1;min-width:280px">
-            <div class="fc-hdr">Gastos {cfg.get('nome_thais','Thais')}</div>
-            <table style="width:100%;border-collapse:collapse">
-              {_linha('Cartão', pin['thais_cartao'])}
-              {_linha('Total', pin['thais_total'], bold=True, bg='rgba(255,255,255,0.05)')}
-            </table>
-          </div>
-        </div>
-
-        <div class="fc-box" style="font-family:inherit">
-          <div class="fc-hdr">Lembretes — quem me paga</div>
-          <div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin['youtube_lembrete'] or '—'}</div>
-          <div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin['spotify_lembrete'] or '—'}</div>
-        </div>
-
-        <div class="fc-box" style="font-family:inherit">
-          <div class="fc-hdr">Investimentos</div>
-          <table style="width:100%;border-collapse:collapse">
-            {_linha('CDB (Reserva)', pin['cdb_reserva'], neg_red=False)}
-            {_linha('Previdência', pin['previdencia'], neg_red=False)}
-          </table>
-        </div>
-        """
+        nome_k = cfg.get('nome_kelvin', 'Kelvin')
+        nome_t = cfg.get('nome_thais', 'Thais')
         st.markdown("#### Resumo do mês")
-        st.html(painel_html)
+        st.html(painel_grid(
+            painel_resumo(nome_k, [
+                ("Salário", pin['salario_kelvin'], "kelvin"),
+                ("Diferença", pin['diferenca_kelvin'], None),
+            ]),
+            painel_resumo(nome_t, [
+                ("Salário", pin['salario_thais'], "thais"),
+                ("Diferença", pin['diferenca_thais'], None),
+            ]),
+        ))
+        st.html(painel_grid(
+            painel_resumo("Gastos + Pix", [
+                (f"Cartão {nome_k}", pin['cartao_kelvin'], None),
+                (f"Cartão {nome_t}", pin['cartao_thais'], None),
+                ("Pagamentos", pin['pagamentos'], None),
+                ("Água - Boleto", pin['agua_boleto'], None),
+                ("Mãe", pin['mae'], None),
+                ("Total", pin['total_gastos'], None),
+            ]),
+            painel_resumo(f"Gastos {nome_t}", [
+                ("Cartão", pin['thais_cartao'], None),
+                ("Total", pin['thais_total'], None),
+            ]),
+        ))
+        st.html(
+            f'<div class="fc-box" style="font-family:inherit">'
+            f'<div class="fc-hdr">Lembretes — quem me paga</div>'
+            f'<div style="padding:8px 12px;font-size:13px"><b style="color:#ff5b5b">YouTube</b> — {pin["youtube_lembrete"] or "—"}</div>'
+            f'<div style="padding:8px 12px;font-size:13px;border-top:1px solid rgba(255,255,255,0.06)"><b style="color:#1e9e5a">Spotify</b> — {pin["spotify_lembrete"] or "—"}</div>'
+            f'</div>'
+        )
+        st.html(painel_resumo("Investimentos", [
+            ("CDB (Reserva)", pin['cdb_reserva'], None),
+            ("Previdência", pin['previdencia'], None),
+        ], neg_red=False))
 
         with st.expander("⚙️ Editar campos do painel (Água, lembretes e investimentos)"):
             st.caption("Apenas estes campos são de digitação livre — os demais são calculados dos lançamentos.")
@@ -478,16 +414,7 @@ if pagina == "Dashboard":
                 f'{nota_html}')
 
     # ── Saldo combinado em destaque (hero) ─────────────────────────────────────
-    neg_cls = "is-negative" if saldo < 0 else ""
-    st.html(f"""
-    <div class="fc-hero {neg_cls}">
-      <div class="fc-hero-label">Saldo combinado do mês</div>
-      <div class="fc-hero-value">R$ {saldo:,.0f}</div>
-      <div class="fc-hero-nota" style="color:{'#ff5b5b' if saldo < 0 else '#21c354'}">
-        {'⚠️ faltam' if saldo < 0 else '✅ sobram'} R$ {abs(saldo):,.0f} no mês
-      </div>
-    </div>
-    """)
+    st.html(hero_saldo(saldo))
 
     if _usuario_mae:
         c1, c3 = st.columns(2)
@@ -1093,17 +1020,11 @@ elif pagina == "Lançamentos":
             chave = (c, sub_s)
             tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
-        cores_banco = {
-            "Itaú": "#FF6B00", "C6": "#000000",
-            ("Santander", "Físico"): "#A80000", ("Santander", None): "#EC0000",
-            ("Itaú", "Visa"): CORES_BANDEIRA_ITAU["Visa"], ("Itaú", "Mastercard"): CORES_BANDEIRA_ITAU["Mastercard"],
-            ("Itaú", "LATAM Pass"): CORES_BANDEIRA_ITAU["LATAM Pass"],
-        }
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
-            cor = cores_banco.get((c, sub_s), cores_banco.get(c, "#444"))
+            cor = CARTAO_COR.get((c, sub_s), CARTAO_COR.get((c, None), "#444"))
             label_banco = f"{c} {sub_s}" if sub_s else c
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             with cols_cards[i]:
@@ -1124,51 +1045,6 @@ elif pagina == "Lançamentos":
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
 
-        tipo_chip = {
-            "FIXO":      ("#1a3a2a", "#4ade80", "FIXO"),
-            "ULTIMA":    ("#3a1a1a", "#f87171", "ÚLTIMA"),
-            "única":     ("#1a2a3a", "#60a5fa", "única"),
-            "parcelado": ("#2a2a1a", "#facc15", "parcelado"),
-        }
-
-        def _cell_lanc(row):
-            """Conteúdo flex de uma linha (descrição+badge, categoria, tipo, faltam, valor)."""
-            subtipo_val = row.get("subtipo_cartao")
-            subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
-            badge = badge_cartao(row["cartao"], subtipo_str)
-            pessoa_val = row.get("pessoa_thais")
-            valor_p = row.get("valor_thais")
-            nome_p = str(pessoa_val) if pessoa_val and not pd.isna(pessoa_val) else ""
-            val_p_fmt = f" · R$ {float(valor_p):,.2f}" if valor_p and not pd.isna(valor_p) else ""
-            pessoa_line = (f'<div style="font-size:10px;color:#666;margin-top:1px">👤 {nome_p}{val_p_fmt}</div>'
-                           if nome_p else "")
-            tipo_raw = str(row["tipo_parcela"])
-            tc = tipo_chip.get(tipo_raw, ("#2a2a2a", "#aaa", tipo_raw))
-            chip = (f'<span style="background:{tc[0]};color:{tc[1]};padding:1px 7px;'
-                    f'border-radius:3px;font-size:11px;white-space:nowrap">{tc[2]}</span>')
-            parc_rest = row.get("total_parcelas")
-            if tipo_raw == "ULTIMA":
-                faltam = "ÚLTIMA"
-            elif tipo_raw == "parcelado" and parc_rest is not None and not pd.isna(parc_rest):
-                faltam = str(int(parc_rest))
-            else:
-                faltam = "—"
-            valor = float(row["valor"])
-            cat = str(row.get("categoria", ""))
-            cor_val = "#4ade80" if valor < 0 else "inherit"
-            conf = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
-            borda = "border-left:3px solid #21c354;background:rgba(33,195,84,0.06)" if conf else "border-left:3px solid transparent"
-            return (
-                f'<div style="display:flex;align-items:center;font-family:inherit;padding:4px 6px;{borda}">'
-                f'<div style="flex:3.2;min-width:0">'
-                f'<span style="font-weight:500;font-size:13px">{_fmt_desc(row["descricao"])}</span>&nbsp;{badge}{pessoa_line}</div>'
-                f'<div style="flex:1.3;font-size:12px;color:#aaa">{cat}</div>'
-                f'<div style="flex:1.1">{chip}</div>'
-                f'<div style="flex:0.8;text-align:center;color:#888;font-size:13px">{faltam}</div>'
-                f'<div style="flex:1.3;text-align:right;font-size:13px;font-weight:600;color:{cor_val}">R$ {valor:,.2f}</div>'
-                f'</div>'
-            )
-
         def _toggle_conferido(lid, key):
             update_lancamento(lid, conferido=bool(st.session_state[key]))
 
@@ -1176,23 +1052,42 @@ elif pagina == "Lançamentos":
         hc = st.columns([0.5, 6.5, 0.6, 0.6])
         hc[0].html('<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
                    'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0;text-align:center">✓</div>')
-        hc[1].html(
-            '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
-            'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0">'
-            '<div style="flex:3.2">Descrição</div><div style="flex:1.3">Categoria</div>'
-            '<div style="flex:1.1">Tipo</div><div style="flex:0.8;text-align:center">Faltam</div>'
-            '<div style="flex:1.3;text-align:right">Valor</div></div>'
-        )
+        hc[1].html(lancamento_header())
 
         # Linhas com checkbox Conferido + botões de ação por registro
         for _, row in lanc.iterrows():
             lid = int(row["id"])
             conf_atual = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
+            subtipo_val = row.get("subtipo_cartao")
+            subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
+            pessoa_val = row.get("pessoa_thais")
+            nome_p = str(pessoa_val) if pessoa_val and not pd.isna(pessoa_val) else None
+            valor_p = row.get("valor_thais")
+            val_p = float(valor_p) if valor_p and not pd.isna(valor_p) else None
+            tipo_raw = str(row["tipo_parcela"])
+            parc_rest = row.get("total_parcelas")
+            if tipo_raw == "ULTIMA":
+                faltam = "ÚLTIMA"
+            elif tipo_raw == "parcelado" and parc_rest is not None and not pd.isna(parc_rest):
+                faltam = str(int(parc_rest))
+            else:
+                faltam = "—"
             rc = st.columns([0.5, 6.5, 0.6, 0.6])
             rc[0].checkbox("Conferido", value=conf_atual, key=f"conf_{lid}",
                            on_change=_toggle_conferido, args=(lid, f"conf_{lid}"),
                            label_visibility="collapsed")
-            rc[1].html(_cell_lanc(row))
+            rc[1].html(lancamento_row(
+                descricao=_fmt_desc(row["descricao"]),
+                cartao=str(row["cartao"]),
+                valor=float(row["valor"]),
+                categoria=str(row.get("categoria", "")),
+                tipo=tipo_raw,
+                faltam=faltam,
+                subtipo=subtipo_str,
+                conferido=conf_atual,
+                pessoa=nome_p,
+                valor_pessoa=val_p,
+            ))
             if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
                 st.rerun()
@@ -1286,7 +1181,7 @@ elif pagina == "Parcelamentos":
 
             sub = g.get("subtipo_cartao")
             sub_str = str(sub) if sub and not pd.isna(sub) else None
-            badge = badge_cartao(str(g["cartao"]), sub_str)
+            badge = bank_badge(str(g["cartao"]), sub_str)
 
             col_info, col_prog, col_acao = st.columns([2.5, 2, 1])
             with col_info:
@@ -1388,7 +1283,7 @@ elif pagina == "Fixos":
             ativo = bool(row.get("ativo", True))
             subtipo_val = row.get("subtipo_cartao")
             subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
-            badge = badge_cartao(str(row["cartao"]), subtipo_str)
+            badge = bank_badge(str(row["cartao"]), subtipo_str)
             cat = str(row.get("categoria", ""))
             val_est = float(row.get("valor_estimado") or 0)
             pt = row.get("pessoa_thais")
@@ -1716,7 +1611,7 @@ Regras:
             it_idx = SUBTIPOS_ITAU.index(it_atual) if it_atual in SUBTIPOS_ITAU else 0
             subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=it_idx,
                                      horizontal=True, key="imp_subtipo_itau")
-        badge_det = badge_cartao(banco_sel, subtipo_sel)
+        badge_det = bank_badge(banco_sel, subtipo_sel)
         st.html(f'<div style="font-size:14px;margin:4px 0 8px">{badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
 
         pessoa_imp = st.text_input("Pessoa (quem paga a parte preenchida em \"Thais paga\")",
