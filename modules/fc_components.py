@@ -2,31 +2,36 @@
 fc_components.py — Componentes HTML do Controle Financeiro (Design System)
 ==========================================================================
 
-Funções que retornam HTML pronto para `st.html(...)`. Tema dark, sem JavaScript,
-cores literais (os tokens CSS não existem dentro do iframe do Streamlit).
+REDESIGN "Fintech Elevated" — visual mais moderno: mais espaçamento,
+tipografia maior, cards com profundidade (gradiente + sombra), números em
+destaque e linhas de lançamento como **cards expansíveis** (`<details>`,
+CSS puro — sem JavaScript, compatível com `st.html()`).
+
+Tudo é drop-in: as assinaturas continuam compatíveis com o `app.py`
+(parâmetros novos são opcionais). Funções puras (str -> str).
 
 Uso típico
 ----------
     import streamlit as st
-    from fc_components import inject_base_css, hero_saldo, painel_resumo, lancamento_row
+    from fc_components import inject_base_css, hero_saldo, lancamento_row
 
     inject_base_css()                       # 1x por página (classes fc-*)
-    st.html(hero_saldo(1240))
-    st.html(painel_resumo("Kelvin", [
-        ("Salário", 6500, "kelvin"),
-        ("Gastos + Pix", 5260, None),
-        ("Diferença", 1240, None),
-    ]))
+    st.html(hero_saldo(1240, trend="▲ 12% vs mês passado"))
+    st.html(lancamento_row("Spotify", "Santander", 21.90,
+                           categoria="Assinaturas", tipo="FIXO",
+                           conferido=True, pessoa="Thais", valor_pessoa=10.95,
+                           data="05/06"))
 
-Todas as funções são puras (str -> str) e seguras para reusar nas páginas
-Dashboard, Lançamentos, Histórico, etc.
+As linhas usam `<details>`: o cabeçalho é a linha densa; ao clicar, expande
+um grid com Categoria · Parcela · Faltam · Divisão · Status. Os botões
+✏️/🗑 continuam sendo `st.button` reais na coluna ao lado (ver row_actions_css).
 """
 
 from __future__ import annotations
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Paleta (espelha tokens/colors.css). Mantida aqui em literais para o Streamlit.
+# Paleta (espelha tokens/colors.css). Literais para o iframe do Streamlit.
 # ──────────────────────────────────────────────────────────────────────────────
 BANCO = {
     "Itaú":             {"bg": "#FF6B00", "fg": "#fff", "label": "Itaú"},
@@ -42,7 +47,8 @@ BANDEIRA = {
     "LATAM Pass": "#00128C",
 }
 
-# Cor de fundo do card de total por cartão (banco + subtipo).
+# Cor SÓLIDA de fundo do card por cartão (banco + subtipo). Mantida para
+# compatibilidade — app.py importa CARTAO_COR.
 CARTAO_COR = {
     ("Itaú", "Visa"):            "#1A1F71",
     ("Itaú", "Mastercard"):      "linear-gradient(100deg,#EB001B 0%,#FF5F00 52%,#F79E1B 100%)",
@@ -51,6 +57,17 @@ CARTAO_COR = {
     ("Santander", "Físico"):     "#A80000",
     ("Santander", None):         "#EC0000",
     ("C6", None):                "#000000",
+}
+
+# REDESIGN: versão com GRADIENTE (profundidade) para os cards de total.
+CARTAO_GRAD = {
+    ("Itaú", "Visa"):        "linear-gradient(150deg,#2a3290,#12153f)",
+    ("Itaú", "Mastercard"):  "linear-gradient(100deg,#EB001B 0%,#FF5F00 52%,#F79E1B 100%)",
+    ("Itaú", "LATAM Pass"):  "linear-gradient(150deg,#1b2db0,#00104f)",
+    ("Itaú", None):          "linear-gradient(150deg,#ff8a33,#e85d00)",
+    ("Santander", "Físico"): "linear-gradient(150deg,#c92020,#7a0000)",
+    ("Santander", None):     "linear-gradient(150deg,#ff3b3b,#c20000)",
+    ("C6", None):            "linear-gradient(150deg,#2c2c2c,#0a0a0a)",
 }
 
 CHIP = {
@@ -64,6 +81,10 @@ SALARIO_COR = {"kelvin": "#2f6fd1", "thais": "#1e9e5a"}
 
 VERDE, VERMELHO, VERDE_CLARO = "#21c354", "#ff5b5b", "#4ade80"
 
+# Paleta harmônica para o quadradinho de categoria (cor estável por nome).
+_CAT_PALETTE = ["#60a5fa", "#4ade80", "#facc15", "#f472b6",
+                "#a78bfa", "#fb923c", "#22d3ee", "#f87171"]
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -74,24 +95,67 @@ def _br(v: float, casas: int = 2) -> str:
     return f"R$ {fmt}"
 
 
+def _cat_cor(categoria: str) -> str:
+    """Cor estável (mesma categoria → mesma cor) a partir da paleta harmônica."""
+    if not categoria:
+        return "#7a8190"
+    h = sum(ord(c) for c in str(categoria))
+    return _CAT_PALETTE[h % len(_CAT_PALETTE)]
+
+
+def _rgba(hexcol: str, a: float) -> str:
+    """'#60a5fa', .14 -> 'rgba(96,165,250,0.14)'. Útil para tints translúcidos."""
+    h = hexcol.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"rgba({r},{g},{b},{a})"
+
+
 # ──────────────────────────────────────────────────────────────────────────────
-# CSS base (classes reutilizadas). Chame inject_base_css() uma vez por página.
-# Equivale ao bloco st.html(<style>…</style>) original do app.
+# CSS base. Chame inject_base_css() uma vez por página.
+#   - fc-box / fc-hdr / fc-grid : painel-resumo (inalterado).
+#   - fc-lanc*                  : NOVO — card de lançamento expansível (<details>).
 # ──────────────────────────────────────────────────────────────────────────────
 def base_css() -> str:
     return """
 <style>
+  /* ── Painel-resumo (inalterado) ─────────────────────────────────────── */
   .fc-box { border:1px solid rgba(255,255,255,.12); border-radius:8px; overflow:hidden; margin-bottom:12px; }
   .fc-hdr { background:#1a1a2e; color:#fff; padding:6px 12px; font-size:12px; font-weight:700;
             text-align:center; text-transform:uppercase; letter-spacing:.5px; }
-  .fc-hero { border-left:4px solid #21c354; border-radius:10px; background:rgba(255,255,255,0.04);
-             padding:18px 22px; margin-bottom:18px; font-family:inherit; color:#fafafa; }
-  .fc-hero.is-negative { border-left-color:#ff5b5b; }
-  .fc-hero-label { font-size:13px; color:#aaa; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
-  .fc-hero-value { font-size:2.4rem; font-weight:800; line-height:1.1; }
-  .fc-hero-nota  { font-size:13px; margin-top:6px; }
   .fc-grid { display:flex; flex-wrap:wrap; gap:12px; font-family:inherit; }
   .fc-grid > .fc-box { flex:1; min-width:280px; }
+
+  /* ── REDESIGN: linha de lançamento como card expansível ─────────────── */
+  .fc-lanc { border:1px solid rgba(255,255,255,0.06); border-radius:14px;
+             background:rgba(255,255,255,0.02); overflow:hidden; margin-bottom:10px;
+             font-family:inherit; color:#fafafa;
+             transition:border-color .16s ease, background .16s ease; }
+  .fc-lanc[open] { border-color:rgba(255,255,255,0.14); background:rgba(255,255,255,0.035); }
+  .fc-lanc.is-conferido { box-shadow:inset 3px 0 0 #21c354; }
+  .fc-lanc > summary { list-style:none; cursor:pointer; display:flex; align-items:center;
+                       gap:14px; padding:14px 16px; }
+  .fc-lanc > summary::-webkit-details-marker { display:none; }
+  .fc-lanc > summary::marker { content:""; }
+  .fc-lanc > summary:hover { background:rgba(255,255,255,0.03); }
+  .fc-lanc-ic { flex:0 0 auto; width:40px; height:40px; border-radius:11px; display:flex;
+                align-items:center; justify-content:center; font-size:15px; font-weight:800; }
+  .fc-lanc-main { flex:1; min-width:0; }
+  .fc-lanc-title { display:flex; align-items:center; gap:8px; font-size:15px; font-weight:600;
+                   color:#f2f2f5; }
+  .fc-lanc-desc { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .fc-lanc-badges { display:flex; align-items:center; gap:7px; margin-top:5px; flex-wrap:wrap; }
+  .fc-lanc-right { flex:0 0 auto; text-align:right; }
+  .fc-lanc-val { font-size:18px; font-weight:700; letter-spacing:-.3px;
+                 font-variant-numeric:tabular-nums; }
+  .fc-lanc-date { font-size:11px; color:#6c707b; margin-top:3px; }
+  .fc-caret { flex:0 0 auto; color:#5a5e68; font-size:13px; transition:transform .18s ease; }
+  .fc-lanc[open] .fc-caret { transform:rotate(180deg); }
+  .fc-lanc-detail { padding:4px 16px 16px 70px; }
+  .fc-lanc-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px 10px;
+                  padding-top:14px; border-top:1px solid rgba(255,255,255,0.06); }
+  .fc-lanc-k { font-size:10px; letter-spacing:.6px; text-transform:uppercase; color:#6c707b;
+               margin-bottom:3px; }
+  .fc-lanc-v { font-size:13px; color:#d6d6dd; font-weight:600; }
 </style>
 """
 
@@ -103,7 +167,7 @@ def inject_base_css() -> None:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 1. Badge de banco (+ bandeira)
+# 1. Badge de banco (+ bandeira) — modernizado (raio 5px, peso 700, sombra sutil)
 # ──────────────────────────────────────────────────────────────────────────────
 def bank_badge(cartao: str, subtipo: Optional[str] = None) -> str:
     """Etiqueta colorida do banco; Itaú ganha 2ª etiqueta com a cor da bandeira."""
@@ -111,8 +175,9 @@ def bank_badge(cartao: str, subtipo: Optional[str] = None) -> str:
     if cartao == "Santander" and subtipo == "Físico":
         key = "Santander Físico"
     b = BANCO.get(key, BANCO["Santander"])
-    s = (f"background:{b['bg']};color:{b['fg']};padding:2px 8px;border-radius:4px;"
-         f"font-size:12px;font-weight:600;display:inline-block;white-space:nowrap")
+    ts = "" if cartao == "C6" else ";text-shadow:0 1px 1px rgba(0,0,0,.3)"
+    s = (f"background:{b['bg']};color:{b['fg']};padding:2px 8px;border-radius:5px;"
+         f"font-size:11px;font-weight:700;display:inline-block;white-space:nowrap{ts}")
     html = f'<span style="{s}">{b["label"]}</span>'
     if cartao == "Itaú" and subtipo in BANDEIRA:
         sombra = ""
@@ -120,67 +185,93 @@ def bank_badge(cartao: str, subtipo: Optional[str] = None) -> str:
             sombra = ";text-shadow:0 1px 1px rgba(0,0,0,.35)"
         elif subtipo == "Visa":
             sombra = ";box-shadow:inset 0 -2px 0 #F7B600"   # acento dourado da Visa
-        fs = (f"background:{BANDEIRA[subtipo]};color:#fff;padding:2px 7px;border-radius:4px;"
+        fs = (f"background:{BANDEIRA[subtipo]};color:#fff;padding:2px 8px;border-radius:5px;"
               f"font-size:11px;font-weight:700;display:inline-block;white-space:nowrap;"
-              f"margin-left:4px{sombra}")
+              f"margin-left:5px{sombra}")
         html += f'<span style="{fs}">{subtipo}</span>'
     return html
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 2. Chip de tipo de parcela
+# 2. Chip de tipo de parcela — modernizado (raio 5px, padding maior)
 # ──────────────────────────────────────────────────────────────────────────────
 def tipo_chip(tipo: str) -> str:
     bg, fg, label = CHIP.get(tipo, ("#2a2a2a", "#aaa", str(tipo)))
-    return (f'<span style="background:{bg};color:{fg};padding:1px 7px;border-radius:3px;'
-            f'font-size:11px;white-space:nowrap">{label}</span>')
+    return (f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:5px;'
+            f'font-size:11px;font-weight:600;white-space:nowrap">{label}</span>')
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 3. Hero de saldo
+# 3. Hero de saldo — REDESIGN "Fintech Elevated"
+#    gradiente + barra com glow + halo + número grande + chip de tendência
 # ──────────────────────────────────────────────────────────────────────────────
-def hero_saldo(saldo: float, label: str = "Saldo combinado do mês") -> str:
+def hero_saldo(saldo: float, label: str = "Saldo combinado do mês",
+               trend: Optional[str] = None) -> str:
+    """`trend` (opcional): texto curto no chip (ex.: '▲ 12% vs mês passado')."""
     neg = saldo < 0
-    cls = " is-negative" if neg else ""
-    cor = VERMELHO if neg else VERDE
+    cor = VERMELHO if neg else VERDE_CLARO
+    bar = ("linear-gradient(180deg,#ff5b5b,#c0392b)" if neg
+           else "linear-gradient(180deg,#21c354,#1e9e5a)")
+    glow = "rgba(255,91,91,0.5)" if neg else "rgba(33,195,84,0.55)"
+    halo = ("radial-gradient(circle,rgba(255,91,91,0.16),transparent 70%)" if neg
+            else "radial-gradient(circle,rgba(33,195,84,0.18),transparent 70%)")
     nota = f'{"⚠️ faltam" if neg else "✅ sobram"} {_br(abs(saldo), 0)} no mês'
+    trend_chip = ""
+    if trend:
+        tcor = "#f87171" if neg else "#4ade80"
+        tbg = "rgba(255,91,91,0.14)" if neg else "rgba(33,195,84,0.14)"
+        trend_chip = (f'<span style="display:inline-flex;align-items:center;gap:5px;'
+                      f'background:{tbg};color:{tcor};font-size:12px;font-weight:700;'
+                      f'padding:5px 11px;border-radius:999px">{trend}</span>')
     return (
-        f'<div class="fc-hero{cls}">'
-        f'<div class="fc-hero-label">{label}</div>'
-        f'<div class="fc-hero-value">{_br(saldo, 0)}</div>'
-        f'<div class="fc-hero-nota" style="color:{cor}">{nota}</div>'
+        f'<div style="position:relative;overflow:hidden;border-radius:18px;padding:24px 26px;'
+        f'background:linear-gradient(150deg,#1b2233 0%,#12141d 100%);'
+        f'border:1px solid rgba(255,255,255,0.07);box-shadow:0 10px 30px rgba(0,0,0,0.35);'
+        f'font-family:inherit;color:#fafafa;margin-bottom:18px">'
+        f'<div style="position:absolute;left:0;top:0;bottom:0;width:5px;background:{bar};'
+        f'box-shadow:0 0 24px 2px {glow}"></div>'
+        f'<div style="position:absolute;right:-40px;top:-40px;width:180px;height:180px;'
+        f'border-radius:50%;background:{halo};pointer-events:none"></div>'
+        f'<div style="display:flex;align-items:center;justify-content:space-between;position:relative">'
+        f'<div style="font-size:12px;font-weight:600;letter-spacing:1.2px;text-transform:uppercase;'
+        f'color:#9aa0ad">{label}</div>{trend_chip}</div>'
+        f'<div style="font-size:3.4rem;font-weight:800;line-height:1;letter-spacing:-1.5px;'
+        f'color:#fff;margin-top:12px;position:relative;font-variant-numeric:tabular-nums">{_br(saldo, 0)}</div>'
+        f'<div style="font-size:14px;font-weight:600;margin-top:12px;color:{cor};position:relative">{nota}</div>'
         f'</div>'
     )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 4. Card de total por cartão (versão estática; clicabilidade = st.button)
+# 4. Card de total por cartão — REDESIGN (gradiente + sombra + número grande)
+#    clicabilidade = st.button por cima (como antes).
 # ──────────────────────────────────────────────────────────────────────────────
 def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
-                ativo: bool = False) -> str:
-    cor = CARTAO_COR.get((cartao, subtipo), CARTAO_COR.get((cartao, None), "#444"))
+                ativo: bool = False, qtd: Optional[str] = None) -> str:
+    """`qtd` (opcional): legenda menor (ex.: '3 lançamentos')."""
+    grad = (CARTAO_GRAD.get((cartao, subtipo))
+            or CARTAO_GRAD.get((cartao, None)) or "#444")
+    fg = "#F7C15F" if cartao == "C6" else "#fff"
     label = f"{cartao} {subtipo}" if subtipo else cartao
-    # box-shadow combina anel de seleção (ativo) + barra dourada da Visa.
-    sombras = []
-    if ativo:
-        sombras.append("0 0 0 2px #fff inset")
+    sombras = ["0 0 0 2px rgba(255,255,255,0.9) inset, 0 12px 26px rgba(0,0,0,0.4)"] if ativo \
+        else ["0 8px 20px rgba(0,0,0,0.35)"]
     if subtipo == "Visa":
         sombras.append("inset 0 -4px 0 #F7B600")   # acento dourado da Visa
-    anel = f"box-shadow:{', '.join(sombras)};" if sombras else ""
-    sombra = "text-shadow:0 1px 2px rgba(0,0,0,.3);" if subtipo == "Mastercard" else ""
+    ts = "text-shadow:0 1px 2px rgba(0,0,0,.35);" if subtipo == "Mastercard" else ""
+    sub = (f'<span style="font-size:11px;opacity:.7;margin-top:2px;color:{fg}">{qtd}</span>'
+           if qtd else "")
     return (
-        f'<div style="background:{cor};color:#fff;border-radius:4px;padding:10px 14px;'
-        f'min-width:130px;font-family:inherit;font-weight:700;line-height:1.3;{anel}{sombra}'
+        f'<div style="background:{grad};color:{fg};border-radius:16px;padding:16px 18px;'
+        f'min-width:150px;font-family:inherit;box-shadow:{", ".join(sombras)};{ts}'
         f'display:inline-flex;flex-direction:column;gap:4px">'
-        f'<span style="font-size:12px;font-weight:600;opacity:.92">{label}</span>'
-        f'<span style="font-size:1.4rem;font-weight:700">{_br(total, 0)}</span>'
-        f'</div>'
+        f'<span style="font-size:12px;font-weight:600;opacity:.9;color:{fg}">{label}</span>'
+        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg}">{_br(total, 0)}</span>'
+        f'{sub}</div>'
     )
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 5. Painel-resumo (caixa de métricas estilo planilha)
-#    linhas: lista de (label, valor, destaque)  — destaque ∈ {"kelvin","thais",None}
+# 5. Painel-resumo (caixa de métricas estilo planilha) — INALTERADO
 # ──────────────────────────────────────────────────────────────────────────────
 def painel_resumo(titulo: str,
                   linhas: Sequence[Tuple[str, float, Optional[str]]],
@@ -218,61 +309,88 @@ def painel_grid(*caixas_html: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 6. Linha de lançamento (a HTML da linha; os botões ✏️/🗑 são st.button ao lado)
-#    Veja row_actions_css() para estilizar os botões.
+# 6. Linha de lançamento — REDESIGN: card expansível (<details>, CSS puro)
+#    O cabeçalho (<summary>) é a linha densa; o corpo é o grid de detalhe.
+#    Os botões ✏️/🗑 continuam sendo st.button na coluna ao lado.
 # ──────────────────────────────────────────────────────────────────────────────
 def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "",
                    tipo: str = "única", faltam: str = "—",
                    subtipo: Optional[str] = None, conferido: bool = False,
-                   pessoa: Optional[str] = None, valor_pessoa: Optional[float] = None) -> str:
-    if conferido:
-        borda = "border-left:3px solid #21c354;background:rgba(33,195,84,0.06)"
-    else:
-        borda = "border-left:3px solid transparent"
-    badge = bank_badge(cartao, subtipo)
-    cor_val = f";color:{VERDE_CLARO}" if valor < 0 else ""
-    pessoa_line = ""
+                   pessoa: Optional[str] = None, valor_pessoa: Optional[float] = None,
+                   data: str = "", parcela: Optional[str] = None,
+                   aberto: bool = False) -> str:
+    """`data` e `parcela` (opcionais) aparecem no detalhe expandido.
+    `aberto=True` renderiza o card já expandido."""
+    cat_cor = _cat_cor(categoria)
+    inicial = (str(categoria).strip()[:1].upper() if categoria else "•")
+    check = '<span style="font-size:12px;color:#4ade80">✓</span>' if conferido else ""
+    cor_val = VERDE_CLARO if valor < 0 else "#f2f2f5"
+
+    # ── Detalhe (expandido) ────────────────────────────────────────────────
+    parcela_fmt = parcela if parcela else "—"
+    faltam_fmt = faltam if (faltam and faltam != "—") else "—"
     if pessoa:
         vp = f" · {_br(valor_pessoa)}" if valor_pessoa is not None else ""
-        pessoa_line = f'<div style="font-size:10px;color:#666;margin-top:1px">👤 {pessoa}{vp}</div>'
+        divisao = f"👤 {pessoa}{vp}"
+    else:
+        divisao = "Sem divisão"
+    status = ("✅ Conferido", "#4ade80") if conferido else ("⚠️ Pendente", "#f59e0b")
+
+    def _cel(k, v, cor="#d6d6dd"):
+        return (f'<div><div class="fc-lanc-k">{k}</div>'
+                f'<div class="fc-lanc-v" style="color:{cor}">{v}</div></div>')
+
+    detalhe = (
+        '<div class="fc-lanc-detail"><div class="fc-lanc-grid">'
+        + _cel("Categoria", categoria or "—")
+        + _cel("Parcela", parcela_fmt)
+        + _cel("Faltam", faltam_fmt)
+        + _cel("Divisão", divisao)
+        + _cel("Status", status[0], status[1])
+        + '</div></div>'
+    )
+
+    cls = "fc-lanc" + (" is-conferido" if conferido else "")
+    open_attr = " open" if aberto else ""
     return (
-        f'<div style="display:flex;align-items:center;font-family:inherit;padding:4px 6px;{borda};color:#fafafa">'
-        f'<div style="flex:3.2;min-width:0">'
-        f'<span style="font-weight:500;font-size:13px">{descricao}</span>&nbsp;{badge}{pessoa_line}</div>'
-        f'<div style="flex:1.3;font-size:12px;color:#aaa">{categoria}</div>'
-        f'<div style="flex:1.1">{tipo_chip(tipo)}</div>'
-        f'<div style="flex:0.8;text-align:center;color:#888;font-size:13px">{faltam}</div>'
-        f'<div style="flex:1.3;text-align:right;font-size:13px;font-weight:600{cor_val}">{_br(valor)}</div>'
+        f'<details class="{cls}"{open_attr}>'
+        f'<summary>'
+        f'<div class="fc-lanc-ic" style="background:{_rgba(cat_cor, 0.14)};color:{cat_cor}">{inicial}</div>'
+        f'<div class="fc-lanc-main">'
+        f'<div class="fc-lanc-title"><span class="fc-lanc-desc">{descricao}</span>{check}</div>'
+        f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo)}</div>'
         f'</div>'
+        f'<div class="fc-lanc-right">'
+        f'<div class="fc-lanc-val" style="color:{cor_val}">{_br(valor)}</div>'
+        f'<div class="fc-lanc-date">{data or "—"}</div>'
+        f'</div>'
+        f'<div class="fc-caret">⌄</div>'
+        f'</summary>'
+        f'{detalhe}'
+        f'</details>'
     )
 
 
 def lancamento_header() -> str:
-    """Cabeçalho da tabela de lançamentos (combina com lancamento_row)."""
-    cols = ('<div style="flex:3.2">Descrição</div><div style="flex:1.3">Categoria</div>'
-            '<div style="flex:1.1">Tipo</div><div style="flex:0.8;text-align:center">Faltam</div>'
-            '<div style="flex:1.3;text-align:right">Valor</div>')
-    return (
-        '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
-        'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);'
-        f'padding:6px 6px;font-family:inherit">{cols}</div>'
-    )
+    """No layout em cards o cabeçalho de colunas não é necessário.
+    Mantido por compatibilidade com app.py — retorna vazio."""
+    return ""
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 7. Ações por linha — no Streamlit são st.button reais. Injete este CSS 1x para
-#    deixá-los quadrados/discretos e use os rótulos "✏️" e "🗑".
+# 7. Ações por linha — st.button reais. Injete este CSS 1x para deixá-los
+#    quadrados/discretos e use os rótulos "✏️" e "🗑".
 # ──────────────────────────────────────────────────────────────────────────────
 def row_actions_css() -> str:
     return """
 <style>
   div[data-testid="stHorizontalBlock"] button[kind="secondary"]{
-    width:30px;height:30px;padding:0;line-height:1;
+    width:34px;height:34px;padding:0;line-height:1;
     background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,.12);
-    border-radius:4px;color:#aaa;
+    border-radius:9px;color:#aaa;
   }
   div[data-testid="stHorizontalBlock"] button[kind="secondary"]:hover{
-    background:rgba(255,255,255,0.07);color:#fafafa;
+    background:rgba(255,255,255,0.09);color:#fafafa;border-color:rgba(255,255,255,.2);
   }
 </style>
 """
