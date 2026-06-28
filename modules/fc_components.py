@@ -273,6 +273,17 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
 # ──────────────────────────────────────────────────────────────────────────────
 # 5. Painel-resumo (caixa de métricas estilo planilha) — INALTERADO
 # ──────────────────────────────────────────────────────────────────────────────
+_PAINEL_CSS = (
+    "<style>"
+    ".fc-box{border:1px solid rgba(255,255,255,.12);border-radius:8px;overflow:hidden;margin-bottom:12px}"
+    ".fc-hdr{background:#1a1a2e;color:#fff;padding:6px 12px;font-size:12px;font-weight:700;"
+    "text-align:center;text-transform:uppercase;letter-spacing:.5px}"
+    ".fc-grid{display:flex;flex-wrap:wrap;gap:12px;font-family:inherit}"
+    ".fc-grid>.fc-box{flex:1;min-width:280px}"
+    "</style>"
+)
+
+
 def painel_resumo(titulo: str,
                   linhas: Sequence[Tuple[str, float, Optional[str]]],
                   cents: bool = False, neg_red: bool = True) -> str:
@@ -296,16 +307,17 @@ def painel_resumo(titulo: str,
                 f'</tr>'
             )
     return (
-        f'<div class="fc-box" style="font-family:inherit;color:#fafafa">'
-        f'<div class="fc-hdr">{titulo}</div>'
-        f'<table style="width:100%;border-collapse:collapse">{"".join(trs)}</table>'
-        f'</div>'
+        _PAINEL_CSS
+        + f'<div class="fc-box" style="font-family:inherit;color:#fafafa">'
+        + f'<div class="fc-hdr">{titulo}</div>'
+        + f'<table style="width:100%;border-collapse:collapse">{"".join(trs)}</table>'
+        + f'</div>'
     )
 
 
 def painel_grid(*caixas_html: str) -> str:
     """Envolve várias caixas de painel_resumo() num grid flex responsivo."""
-    return f'<div class="fc-grid">{"".join(caixas_html)}</div>'
+    return _PAINEL_CSS + f'<div class="fc-grid">{"".join(caixas_html)}</div>'
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -313,6 +325,40 @@ def painel_grid(*caixas_html: str) -> str:
 #    O cabeçalho (<summary>) é a linha densa; o corpo é o grid de detalhe.
 #    Os botões ✏️/🗑 continuam sendo st.button na coluna ao lado.
 # ──────────────────────────────────────────────────────────────────────────────
+_LANC_CSS = """
+<style>
+  .fc-lanc{border:1px solid rgba(255,255,255,0.06);border-radius:14px;
+    background:rgba(255,255,255,0.02);overflow:hidden;margin-bottom:10px;
+    font-family:inherit;color:#fafafa;
+    transition:border-color .16s ease,background .16s ease}
+  .fc-lanc[open]{border-color:rgba(255,255,255,0.14);background:rgba(255,255,255,0.035)}
+  .fc-lanc.is-conferido{box-shadow:inset 3px 0 0 #21c354}
+  .fc-lanc>summary{list-style:none;cursor:pointer;display:flex;align-items:center;
+    gap:14px;padding:14px 16px}
+  .fc-lanc>summary::-webkit-details-marker{display:none}
+  .fc-lanc>summary::marker{content:""}
+  .fc-lanc>summary:hover{background:rgba(255,255,255,0.03)}
+  .fc-lanc-ic{flex:0 0 auto;width:40px;height:40px;border-radius:11px;display:flex;
+    align-items:center;justify-content:center;font-size:15px;font-weight:800}
+  .fc-lanc-main{flex:1;min-width:0}
+  .fc-lanc-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;color:#f2f2f5}
+  .fc-lanc-desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fc-lanc-badges{display:flex;align-items:center;gap:7px;margin-top:5px;flex-wrap:wrap}
+  .fc-lanc-right{flex:0 0 auto;text-align:right}
+  .fc-lanc-val{font-size:18px;font-weight:700;letter-spacing:-.3px;font-variant-numeric:tabular-nums}
+  .fc-lanc-date{font-size:11px;color:#6c707b;margin-top:3px}
+  .fc-caret{flex:0 0 auto;color:#5a5e68;font-size:13px;transition:transform .18s ease}
+  .fc-lanc[open] .fc-caret{transform:rotate(180deg)}
+  .fc-lanc-detail{padding:4px 16px 16px 70px}
+  .fc-lanc-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 10px;
+    padding-top:14px;border-top:1px solid rgba(255,255,255,0.06)}
+  .fc-lanc-k{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#6c707b;margin-bottom:3px}
+  .fc-lanc-v{font-size:13px;color:#d6d6dd;font-weight:600}
+</style>
+"""
+_LANC_CSS_INJECTED = False
+
+
 def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "",
                    tipo: str = "única", faltam: str = "—",
                    subtipo: Optional[str] = None, conferido: bool = False,
@@ -321,12 +367,17 @@ def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "
                    aberto: bool = False) -> str:
     """`data` e `parcela` (opcionais) aparecem no detalhe expandido.
     `aberto=True` renderiza o card já expandido."""
+    global _LANC_CSS_INJECTED
+    css_block = ""
+    if not _LANC_CSS_INJECTED:
+        css_block = _LANC_CSS
+        _LANC_CSS_INJECTED = True
+
     cat_cor = _cat_cor(categoria)
     inicial = (str(categoria).strip()[:1].upper() if categoria else "•")
     check = '<span style="font-size:12px;color:#4ade80">✓</span>' if conferido else ""
     cor_val = VERDE_CLARO if valor < 0 else "#f2f2f5"
 
-    # ── Detalhe (expandido) ────────────────────────────────────────────────
     parcela_fmt = parcela if parcela else "—"
     faltam_fmt = faltam if (faltam and faltam != "—") else "—"
     if pessoa:
@@ -353,21 +404,22 @@ def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "
     cls = "fc-lanc" + (" is-conferido" if conferido else "")
     open_attr = " open" if aberto else ""
     return (
-        f'<details class="{cls}"{open_attr}>'
-        f'<summary>'
-        f'<div class="fc-lanc-ic" style="background:{_rgba(cat_cor, 0.14)};color:{cat_cor}">{inicial}</div>'
-        f'<div class="fc-lanc-main">'
-        f'<div class="fc-lanc-title"><span class="fc-lanc-desc">{descricao}</span>{check}</div>'
-        f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo)}</div>'
-        f'</div>'
-        f'<div class="fc-lanc-right">'
-        f'<div class="fc-lanc-val" style="color:{cor_val}">{_br(valor)}</div>'
-        f'<div class="fc-lanc-date">{data or "—"}</div>'
-        f'</div>'
-        f'<div class="fc-caret">⌄</div>'
-        f'</summary>'
-        f'{detalhe}'
-        f'</details>'
+        css_block
+        + f'<details class="{cls}"{open_attr}>'
+        + f'<summary>'
+        + f'<div class="fc-lanc-ic" style="background:{_rgba(cat_cor, 0.14)};color:{cat_cor}">{inicial}</div>'
+        + f'<div class="fc-lanc-main">'
+        + f'<div class="fc-lanc-title"><span class="fc-lanc-desc">{descricao}</span>{check}</div>'
+        + f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo)}</div>'
+        + f'</div>'
+        + f'<div class="fc-lanc-right">'
+        + f'<div class="fc-lanc-val" style="color:{cor_val}">{_br(valor)}</div>'
+        + f'<div class="fc-lanc-date">{data or "—"}</div>'
+        + f'</div>'
+        + f'<div class="fc-caret">⌄</div>'
+        + f'</summary>'
+        + detalhe
+        + f'</details>'
     )
 
 
