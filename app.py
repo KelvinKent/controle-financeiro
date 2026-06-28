@@ -22,7 +22,7 @@ from modules.db import (
 from modules.fc_components import (
     inject_base_css, row_actions_css, bank_badge, hero_saldo,
     painel_resumo, painel_grid, lancamento_header, lancamento_row, card_cartao,
-    CARTAO_COR,
+    CARTAO_COR, CARTAO_GRAD,
 )
 
 _MESES_PT = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
@@ -1023,21 +1023,30 @@ elif pagina == "Lançamentos":
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
+        def _fmt_brl(v):
+            return "R$ " + f"{v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             label_banco = f"{c} {sub_s}" if sub_s else c
+            grad = CARTAO_GRAD.get((c, sub_s), CARTAO_GRAD.get((c, None), "#444"))
+            fg = "#F7C15F" if c == "C6" else "#fff"
+            anel = "0 0 0 2.5px rgba(255,255,255,0.85) inset, 0 8px 20px rgba(0,0,0,.35)" if ativo \
+                   else "0 8px 20px rgba(0,0,0,.35)"
             with cols_cards[i]:
-                st.html(card_cartao(c, tot, sub_s, ativo=ativo))
-                st.markdown(f'<span class="card-anchor-{i}"></span>', unsafe_allow_html=True)
-                clicado = st.button(" ", key=f"cardbtn_cartao_{i}", use_container_width=True,
-                                    help=f"Filtrar: {label_banco}")
+                st.markdown(f'<span class="cc-{i}"></span>', unsafe_allow_html=True)
+                clicado = st.button(f"{label_banco}\n{_fmt_brl(tot)}",
+                                    key=f"cardbtn_cartao_{i}", use_container_width=True)
                 st.markdown(f"""<style>
-                    span.card-anchor-{i} + div button {{
-                        position:relative; margin-top:-88px; height:80px;
-                        background:transparent !important; border:none !important;
-                        color:transparent !important; cursor:pointer !important;
-                        box-shadow:none !important;
+                    span.cc-{i} + div button {{
+                        background:{grad} !important; color:{fg} !important;
+                        border:none !important; border-radius:16px !important;
+                        min-height:80px !important; font-weight:700 !important;
+                        white-space:pre-line !important; line-height:1.5 !important;
+                        font-size:13px !important; box-shadow:{anel} !important;
+                        padding:12px 14px !important;
                     }}
+                    span.cc-{i} + div button:hover {{ filter:brightness(1.08) !important; }}
                 </style>""", unsafe_allow_html=True)
             if clicado:
                 st.session_state["_toggle_cartao_request"] = (c, sub_s)
@@ -1106,7 +1115,7 @@ elif pagina == "Lançamentos":
             edit_ver = st.session_state.get(f"edit_ver_{lid_ed}", 0)
             campos_ed = form_lancamento(f"edit_{lid_ed}_{edit_ver}", dados=dados_ed)
             ce1, ce2 = st.columns(2)
-            if ce1.button("💾 Salvar alterações", use_container_width=True, key="btn_salvar_ed"):
+            if ce1.button("💾 Salvar", use_container_width=True, key="btn_salvar_ed"):
                 update_lancamento(lid_ed,
                     cartao=campos_ed["cartao"], valor=campos_ed["valor"],
                     descricao=campos_ed["descricao"], categoria=campos_ed["categoria"],
