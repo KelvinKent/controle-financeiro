@@ -997,13 +997,13 @@ elif pagina == "Lançamentos":
         pct_c = int(min(_gasto_comb / _bud_comb * 100, 100)) if _bud_comb > 0 else 0
         st.progress(pct_c / 100)
         def _brl(v): return f"R$ {v:,.2f}".replace(",","X").replace(".",",").replace("X",".")
-        st.markdown(f"<small>Gasto: {_brl(_gasto_comb)} &nbsp;·&nbsp; Restante: <b>{_brl(_rest_comb)}</b></small>", unsafe_allow_html=True)
+        st.html(f"<small style='color:#aaa'>Gasto: {_brl(_gasto_comb)} &nbsp;·&nbsp; Restante: <b style='color:#fff'>{_brl(_rest_comb)}</b></small>")
     with bc2:
         novo_bud_feira = st.number_input("🛒 Feira — orçamento (R$)", value=_bud_feira,
                                          min_value=0.0, step=50.0, format="%.0f", key="bud_feira")
         pct_f = int(min(_gasto_feira / _bud_feira * 100, 100)) if _bud_feira > 0 else 0
         st.progress(pct_f / 100)
-        st.markdown(f"<small>Gasto: {_brl(_gasto_feira)} &nbsp;·&nbsp; Restante: <b>{_brl(_rest_feira)}</b></small>", unsafe_allow_html=True)
+        st.html(f"<small style='color:#aaa'>Gasto: {_brl(_gasto_feira)} &nbsp;·&nbsp; Restante: <b style='color:#fff'>{_brl(_rest_feira)}</b></small>")
     with bc3:
         st.write(""); st.write(""); st.write("")
         if st.button("💾", key="bud_salvar", help="Salvar orçamentos", use_container_width=True):
