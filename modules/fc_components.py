@@ -256,21 +256,23 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
     """`qtd` (opcional): legenda menor (ex.: '3 lançamentos')."""
     grad = (CARTAO_GRAD.get((cartao, subtipo))
             or CARTAO_GRAD.get((cartao, None)) or "#444")
-    fg = _CARTAO_FG.get((cartao, subtipo), _CARTAO_FG.get((cartao, None), "#fff"))
+    # Itaú sem subtipo: label azul, valor branco. Demais: tudo branco.
+    fg_label = "#003D7B" if (cartao == "Itaú" and subtipo is None) else "#fff"
+    fg_value = "#fff"
     label = f"{cartao} {subtipo}" if subtipo else cartao
     sombras = ["0 0 0 2px rgba(255,255,255,0.9) inset, 0 12px 26px rgba(0,0,0,0.4)"] if ativo \
         else ["0 8px 20px rgba(0,0,0,0.35)"]
     if subtipo == "Visa":
-        sombras.append("inset 0 -4px 0 #F7B600")   # acento dourado da Visa
+        sombras.append("inset 0 -4px 0 #F7B600")
     ts = "text-shadow:0 1px 2px rgba(0,0,0,.35);" if subtipo == "Mastercard" else ""
-    sub = (f'<span style="font-size:11px;opacity:.7;margin-top:2px;color:{fg}">{qtd}</span>'
+    sub = (f'<span style="font-size:11px;opacity:.7;margin-top:2px;color:{fg_value}">{qtd}</span>'
            if qtd else "")
     return (
-        f'<div style="background:{grad};color:{fg};border-radius:16px;padding:16px 18px;'
+        f'<div style="background:{grad};border-radius:16px;padding:16px 18px;'
         f'width:100%;box-sizing:border-box;font-family:inherit;box-shadow:{", ".join(sombras)};{ts}'
         f'display:flex;flex-direction:column;gap:4px">'
-        f'<span style="font-size:12px;font-weight:600;opacity:.9;color:{fg}">{label}</span>'
-        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg}">{_br(total, 0)}</span>'
+        f'<span style="font-size:12px;font-weight:600;opacity:.9;color:{fg_label}">{label}</span>'
+        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg_value}">{_br(total, 0)}</span>'
         f'{sub}</div>'
     )
 
