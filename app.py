@@ -771,11 +771,11 @@ elif pagina == "Lançamentos":
             st.session_state["lanc_filtro_subtipo"] = [sub_tog] if sub_key == "lanc_filtro_subtipo" else []
             st.session_state["lanc_filtro_subtipo_itau"] = [sub_tog] if sub_key == "lanc_filtro_subtipo_itau" else []
 
-    col_title, col_fixos = st.columns([4, 1])
+    col_title, col_fixos = st.columns([5, 1])
     col_title.title(f"Lançamentos — {mes_label}")
     with col_fixos:
         st.write("")
-        if st.button("📌 Fixos", use_container_width=True, help="Aplicar fixos do mês"):
+        if st.button("📌", use_container_width=True, help="Aplicar fixos do mês"):
             n = aplicar_fixos_ao_mes(mes)
             st.success(f"{n} fixo(s) adicionado(s)!" if n > 0 else "Todos os fixos já estão neste mês.")
             # Sem st.rerun(): os widgets de filtro só são criados depois, mais abaixo no
@@ -1040,7 +1040,7 @@ elif pagina == "Lançamentos":
             label_banco = f"{c} {sub_s}" if sub_s else c
             with cols_btns[i]:
                 clicado = st.button(
-                    "✓ ativo" if ativo else "filtrar",
+                    "✓" if ativo else "◎",
                     key=f"cardbtn_cartao_{i}",
                     use_container_width=True,
                     type="primary" if ativo else "secondary",
