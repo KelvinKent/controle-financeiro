@@ -318,7 +318,7 @@ if pagina == "Dashboard":
                 value=sal_t, min_value=0.0, step=100.0, format="%.2f", key="sal_t")
         with col3:
             st.write(""); st.write("")
-            if st.button("💾 Salvar", help="Salvar salários", use_container_width=True):
+            if st.button("💾", help="Salvar salários", use_container_width=True):
                 upsert_mes(mes, novo_sal_k, novo_sal_t)
                 st.success("Salários atualizados!")
                 st.rerun()
@@ -1214,7 +1214,7 @@ elif pagina == "Parcelamentos":
             with col_acao:
                 st.write("")
                 if restantes > 0:
-                    if st.button("✅ Quitar", key=f"quit_{gid}", help="Quitar antecipado", use_container_width=True):
+                    if st.button("✅", key=f"quit_{gid}", help="Quitar antecipado", use_container_width=True):
                         cancelar_parcelas_restantes(gid, mes)
                         st.success("Parcelas futuras removidas!")
                         st.rerun()
@@ -1335,7 +1335,7 @@ elif pagina == "Fixos":
             if rc[2].button("🗑", key=f"dfx_{fid}", help="Excluir"):
                 delete_fixo(fid)
                 st.rerun()
-            if rc[3].button("⏸ Pausar" if ativo else "▶ Ativar", key=f"tfx_{fid}", use_container_width=True):
+            if rc[3].button("⏸" if ativo else "▶", key=f"tfx_{fid}", use_container_width=True, help="Pausar" if ativo else "Ativar"):
                 update_fixo(fid, ativo=not ativo)
                 st.rerun()
 
