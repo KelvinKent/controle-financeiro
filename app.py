@@ -1190,7 +1190,7 @@ elif pagina == "Parcelamentos":
             sub_str = str(sub) if sub and not pd.isna(sub) else None
             badge = bank_badge(str(g["cartao"]), sub_str)
 
-            col_info, col_prog, col_acao = st.columns([2.5, 2, 1])
+            col_info, col_prog, col_acao = st.columns([2.5, 2, 1.8])
             with col_info:
                 st.html(
                     f'<div style="padding:4px 0">'
@@ -1210,7 +1210,7 @@ elif pagina == "Parcelamentos":
             with col_acao:
                 st.write("")
                 if restantes > 0:
-                    if st.button("✅ Quitar", key=f"quit_{gid}", help="Quitar antecipado"):
+                    if st.button("✅ Quitar", key=f"quit_{gid}", help="Quitar antecipado", use_container_width=True):
                         cancelar_parcelas_restantes(gid, mes)
                         st.success("Parcelas futuras removidas!")
                         st.rerun()
