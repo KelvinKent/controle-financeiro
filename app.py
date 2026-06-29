@@ -1077,22 +1077,13 @@ elif pagina == "Lançamentos":
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
 
-        # Visual: todos os cards num único bloco HTML (flex row, sem restrição de coluna)
-        cards_visuais = "".join(
-            card_cartao(c, tot, sub_s,
-                        ativo=(c in filtro_cartao) and
-                              (sub_s is None or sub_s in sub_filtro_ativo.get(c, [])))
-            for (c, sub_s), tot in cartoes_ordenados
-        )
-        st.html(f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">'
-                f'{cards_visuais}</div>')
-
-        # Botões de filtro: linha de botões abaixo, um por cartão
-        cols_btns = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
+        # Cards + botão de filtro juntos em colunas iguais (alinhamento garantido)
+        cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             label_banco = f"{c} {sub_s}" if sub_s else c
-            with cols_btns[i]:
+            with cols_cards[i]:
+                st.html(card_cartao(c, tot, sub_s, ativo=ativo))
                 clicado = st.button(
                     "✓" if ativo else "◎",
                     key=f"cardbtn_cartao_{i}",
