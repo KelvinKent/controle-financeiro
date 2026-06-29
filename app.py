@@ -297,14 +297,14 @@ if pagina == "Dashboard":
 
     st.markdown("#### Salário do mês" if _usuario_mae else "#### Salários do mês")
     if _usuario_mae:
-        col1, col3 = st.columns([1, 2])
+        col1, col3 = st.columns([3, 1])
         with col1:
             novo_sal_k = st.number_input(f"Salário {cfg.get('nome_kelvin','Rita')} (R$)",
                 value=sal_k, min_value=0.0, step=100.0, format="%.2f", key="sal_k")
         novo_sal_t = 0.0
         with col3:
             st.write(""); st.write("")
-            if st.button("💾 Salvar", help="Salvar salário"):
+            if st.button("💾", help="Salvar salário", use_container_width=True):
                 upsert_mes(mes, novo_sal_k, novo_sal_t)
                 st.success("Salário atualizado!")
                 st.rerun()
@@ -398,7 +398,7 @@ if pagina == "Dashboard":
                 value=float(pin["previdencia"]), key="pin_prev")
             ed_yt = st.text_input("Lembrete YouTube", value=pin["youtube_lembrete"], key="pin_yt")
             ed_sp = st.text_input("Lembrete Spotify", value=pin["spotify_lembrete"], key="pin_sp")
-            if st.button("💾 Salvar", key="btn_pin", help="Salvar painel"):
+            if st.button("💾", key="btn_pin", help="Salvar painel"):
                 set_painel(mes, agua_boleto=ed_agua, cdb_reserva=ed_cdb, previdencia=ed_prev,
                            youtube_lembrete=ed_yt, spotify_lembrete=ed_sp)
                 st.success("Painel atualizado!")
@@ -562,7 +562,7 @@ if pagina == "Dashboard":
                 novo = col.number_input(cat, min_value=0.0, step=50.0, value=atual,
                                         format="%.0f", key=f"orc_{cat}")
                 novos_orcs[cat] = novo
-            if st.button("💾 Salvar", use_container_width=True, help="Salvar orçamentos"):
+            if st.button("💾", use_container_width=True, help="Salvar orçamentos"):
                 for cat, val in novos_orcs.items():
                     if val > 0:
                         set_orcamento(mes, cat, val)
@@ -1022,7 +1022,7 @@ elif pagina == "Lançamentos":
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
         campos = form_lancamento(f"novo_{ver}")
-        if st.button("💾 Salvar lançamento", use_container_width=True, key=f"btn_novo_{ver}"):
+        if st.button("💾 Salvar", use_container_width=True, key=f"btn_novo_{ver}"):
             if salvar_campos(campos):
                 st.session_state.form_novo_ver = ver + 1
                 st.rerun()
@@ -1304,7 +1304,7 @@ elif pagina == "Fixos":
         f_divide = ff5.checkbox("Dividir?", key="f_divide")
         f_pessoa = ff6.text_input("Pessoa", value="Thais", key="f_pessoa")
         f_vt = ff7.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_vt")
-        if st.button("Salvar fixo", use_container_width=True, key="f_salvar"):
+        if st.button("💾", use_container_width=True, key="f_salvar", help="Salvar fixo"):
             df_fixos = load_sheet("fixos")
             novo_id = int(df_fixos["id"].max() + 1) if not df_fixos.empty else 1
             novo = {
@@ -1840,7 +1840,7 @@ elif pagina == "Configurações":
     if get_usuario_atual() == "mae":
         st.markdown("#### Perfil")
         nome_k = st.text_input("Seu nome", value=cfg.get("nome_kelvin", "Rita"))
-        if st.button("💾 Salvar nome"):
+        if st.button("💾", help="Salvar nome"):
             set_config("nome_kelvin", nome_k)
             st.success("Nome salvo!")
             st.rerun()
