@@ -62,12 +62,17 @@ CARTAO_COR = {
 # REDESIGN: versão com GRADIENTE (profundidade) para os cards de total.
 CARTAO_GRAD = {
     ("Itaú", "Visa"):        "linear-gradient(150deg,#2a3290,#12153f)",
-    ("Itaú", "Mastercard"):  "linear-gradient(100deg,#EB001B 0%,#FF5F00 52%,#F79E1B 100%)",
+    ("Itaú", "Mastercard"):  "linear-gradient(90deg,#EB001B 0%,#EB001B 30%,#FF5F00 55%,#F79E1B 100%)",
     ("Itaú", "LATAM Pass"):  "linear-gradient(150deg,#1b2db0,#00104f)",
     ("Itaú", None):          "linear-gradient(150deg,#ff8a33,#e85d00)",
     ("Santander", "Físico"): "linear-gradient(150deg,#c92020,#7a0000)",
     ("Santander", None):     "linear-gradient(150deg,#ff3b3b,#c20000)",
     ("C6", None):            "linear-gradient(150deg,#2c2c2c,#0a0a0a)",
+}
+
+# Cor do texto por cartão (padrão #fff; Itaú usa azul corporativo no laranja)
+_CARTAO_FG = {
+    ("Itaú", None): "#003D7B",
 }
 
 CHIP = {
@@ -251,7 +256,7 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
     """`qtd` (opcional): legenda menor (ex.: '3 lançamentos')."""
     grad = (CARTAO_GRAD.get((cartao, subtipo))
             or CARTAO_GRAD.get((cartao, None)) or "#444")
-    fg = "#fff"
+    fg = _CARTAO_FG.get((cartao, subtipo), _CARTAO_FG.get((cartao, None), "#fff"))
     label = f"{cartao} {subtipo}" if subtipo else cartao
     sombras = ["0 0 0 2px rgba(255,255,255,0.9) inset, 0 12px 26px rgba(0,0,0,0.4)"] if ativo \
         else ["0 8px 20px rgba(0,0,0,0.35)"]
