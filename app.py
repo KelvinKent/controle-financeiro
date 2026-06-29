@@ -86,7 +86,7 @@ def _editor_controle_extra(tipo: str, mes: str, titulo: str, label_nome: str = "
         _st.caption(ajuda)
     edited = _st.data_editor(base, num_rows="dynamic", use_container_width=True,
                               column_config=col_config, key=f"editor_{tipo}_{mes}")
-    if _st.button(f"💾 Salvar {titulo.lower()}", key=f"salvar_{tipo}_{mes}"):
+    if _st.button("💾 Salvar", key=f"salvar_{tipo}_{mes}", help=f"Salvar {titulo.lower()}"):
         for _, r in df_ext.iterrows():
             delete_controle_extra(int(r["id"]))
         for _, r in edited.iterrows():
@@ -300,7 +300,7 @@ if pagina == "Dashboard":
         novo_sal_t = 0.0
         with col3:
             st.write(""); st.write("")
-            if st.button("💾 Salvar salário"):
+            if st.button("💾 Salvar", help="Salvar salário"):
                 upsert_mes(mes, novo_sal_k, novo_sal_t)
                 st.success("Salário atualizado!")
                 st.rerun()
@@ -394,7 +394,7 @@ if pagina == "Dashboard":
                 value=float(pin["previdencia"]), key="pin_prev")
             ed_yt = st.text_input("Lembrete YouTube", value=pin["youtube_lembrete"], key="pin_yt")
             ed_sp = st.text_input("Lembrete Spotify", value=pin["spotify_lembrete"], key="pin_sp")
-            if st.button("💾 Salvar painel", key="btn_pin"):
+            if st.button("💾 Salvar", key="btn_pin", help="Salvar painel"):
                 set_painel(mes, agua_boleto=ed_agua, cdb_reserva=ed_cdb, previdencia=ed_prev,
                            youtube_lembrete=ed_yt, spotify_lembrete=ed_sp)
                 st.success("Painel atualizado!")
@@ -476,7 +476,7 @@ if pagina == "Dashboard":
         col_top.markdown("#### Top 10 maiores gastos variáveis")
         with col_export:
             st.write("")
-            if st.button("📥 Exportar Excel", use_container_width=True, help="Baixar lançamentos do mês como .xlsx"):
+            if st.button("📥 Excel", use_container_width=True, help="Baixar lançamentos do mês como .xlsx"):
                 import io
                 from openpyxl import Workbook as _WB
                 exp = lanc.copy()
@@ -558,7 +558,7 @@ if pagina == "Dashboard":
                 novo = col.number_input(cat, min_value=0.0, step=50.0, value=atual,
                                         format="%.0f", key=f"orc_{cat}")
                 novos_orcs[cat] = novo
-            if st.button("💾 Salvar orçamentos", use_container_width=True):
+            if st.button("💾 Salvar", use_container_width=True, help="Salvar orçamentos"):
                 for cat, val in novos_orcs.items():
                     if val > 0:
                         set_orcamento(mes, cat, val)
@@ -1210,7 +1210,7 @@ elif pagina == "Parcelamentos":
             with col_acao:
                 st.write("")
                 if restantes > 0:
-                    if st.button("✅ Quitar antecipado", key=f"quit_{gid}"):
+                    if st.button("✅ Quitar", key=f"quit_{gid}", help="Quitar antecipado"):
                         cancelar_parcelas_restantes(gid, mes)
                         st.success("Parcelas futuras removidas!")
                         st.rerun()
@@ -1815,7 +1815,7 @@ elif pagina == "Configurações":
         if div_k + div_t != 100:
             st.warning(f"A soma deve ser 100%. Atualmente: {div_k + div_t}%")
 
-        if st.button("💾 Salvar configurações", disabled=(div_k + div_t != 100)):
+        if st.button("💾 Salvar", disabled=(div_k + div_t != 100), help="Salvar configurações"):
             set_config("nome_kelvin", nome_k)
             set_config("nome_thais", nome_t)
             set_config("divisao_kelvin", div_k)
