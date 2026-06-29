@@ -989,36 +989,33 @@ elif pagina == "Lançamentos":
     _rest_comb  = max(0.0, _bud_comb  - _gasto_comb)  if not _zerado else 0.0
     _rest_feira = max(0.0, _bud_feira - _gasto_feira) if not _zerado else 0.0
 
-    with st.expander("⛽ Budget Santander — Combustível & Feira", expanded=True):
-        bc1, bc2, bc3 = st.columns([2, 2, 1])
-        with bc1:
-            st.markdown("**⛽ Combustível**")
-            novo_bud_comb = st.number_input("Orçamento (R$)", value=_bud_comb, min_value=0.0,
-                                            step=50.0, format="%.0f", key="bud_comb",
-                                            label_visibility="collapsed")
-            pct_c = int(min(_gasto_comb / _bud_comb * 100, 100)) if _bud_comb > 0 else 0
-            st.progress(pct_c / 100)
-            st.caption(f"Gasto: R$ {_gasto_comb:,.2f} · Restante: **R$ {_rest_comb:,.2f}**")
-        with bc2:
-            st.markdown("**🛒 Feira**")
-            novo_bud_feira = st.number_input("Orçamento (R$)", value=_bud_feira, min_value=0.0,
-                                             step=50.0, format="%.0f", key="bud_feira",
-                                             label_visibility="collapsed")
-            pct_f = int(min(_gasto_feira / _bud_feira * 100, 100)) if _bud_feira > 0 else 0
-            st.progress(pct_f / 100)
-            st.caption(f"Gasto: R$ {_gasto_feira:,.2f} · Restante: **R$ {_rest_feira:,.2f}**")
-        with bc3:
-            st.write(""); st.write("")
-            if st.button("💾", key="bud_salvar", help="Salvar orçamentos", use_container_width=True):
-                set_config("budget_combustivel", novo_bud_comb)
-                set_config("budget_feira", novo_bud_feira)
-                st.success("Salvo!")
-                st.rerun()
-            _label_zero = "✓ zerado" if _zerado else "🔄 Zerar"
-            if st.button(_label_zero, key="bud_zerar", use_container_width=True,
-                         help="Zerar provisões do mês (use após lançar tudo)"):
-                set_config(f"budget_zerado_{mes}", "0" if _zerado else "1")
-                st.rerun()
+    st.markdown("##### ⛽ Budget Santander — Combustível & Feira")
+    bc1, bc2, bc3 = st.columns([2, 2, 1])
+    with bc1:
+        novo_bud_comb = st.number_input("⛽ Combustível — orçamento (R$)", value=_bud_comb,
+                                        min_value=0.0, step=50.0, format="%.0f", key="bud_comb")
+        pct_c = int(min(_gasto_comb / _bud_comb * 100, 100)) if _bud_comb > 0 else 0
+        st.progress(pct_c / 100)
+        st.caption(f"Gasto: R$ {_gasto_comb:,.2f} · Restante: **R$ {_rest_comb:,.2f}**")
+    with bc2:
+        novo_bud_feira = st.number_input("🛒 Feira — orçamento (R$)", value=_bud_feira,
+                                         min_value=0.0, step=50.0, format="%.0f", key="bud_feira")
+        pct_f = int(min(_gasto_feira / _bud_feira * 100, 100)) if _bud_feira > 0 else 0
+        st.progress(pct_f / 100)
+        st.caption(f"Gasto: R$ {_gasto_feira:,.2f} · Restante: **R$ {_rest_feira:,.2f}**")
+    with bc3:
+        st.write(""); st.write(""); st.write("")
+        if st.button("💾", key="bud_salvar", help="Salvar orçamentos", use_container_width=True):
+            set_config("budget_combustivel", novo_bud_comb)
+            set_config("budget_feira", novo_bud_feira)
+            st.success("Salvo!")
+            st.rerun()
+        _label_zero = "✓" if _zerado else "🔄"
+        if st.button(_label_zero, key="bud_zerar", use_container_width=True,
+                     help="Zerar provisões do mês" if not _zerado else "Restaurar provisões"):
+            set_config(f"budget_zerado_{mes}", "0" if _zerado else "1")
+            st.rerun()
+    st.divider()
 
     # ── Novo lançamento (sem st.form → checkbox reativo) ──────────────────────
     ver = st.session_state.form_novo_ver
