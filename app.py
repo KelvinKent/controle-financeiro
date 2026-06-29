@@ -972,6 +972,54 @@ elif pagina == "Lançamentos":
             _editor_controle_extra("aluguel", mes, "aluguel", label_nome="Pessoa", mostrar_nota=True,
                                     ajuda="Copiado automaticamente do mês anterior ao criar um mês novo.")
 
+    # ── Budget provisório Santander (Combustível / Feira) ─────────────────────
+    _cfg = get_config()
+    _bud_comb  = float(_cfg.get("budget_combustivel", 700))
+    _bud_feira = float(_cfg.get("budget_feira", 200))
+    _zerado    = _cfg.get(f"budget_zerado_{mes}", "0") == "1"
+
+    _lanc_full_bud = get_lancamentos(mes)
+    _gasto_comb  = 0.0
+    _gasto_feira = 0.0
+    if not _lanc_full_bud.empty:
+        _sant = _lanc_full_bud[_lanc_full_bud["cartao"] == "Santander"]
+        _gasto_comb  = float(_sant[_sant["descricao"].str.contains("combustiv", case=False, na=False)]["valor"].sum())
+        _gasto_feira = float(_sant[_sant["descricao"].str.contains("feira", case=False, na=False)]["valor"].sum())
+
+    _rest_comb  = max(0.0, _bud_comb  - _gasto_comb)  if not _zerado else 0.0
+    _rest_feira = max(0.0, _bud_feira - _gasto_feira) if not _zerado else 0.0
+
+    with st.expander("⛽ Budget Santander — Combustível & Feira", expanded=True):
+        bc1, bc2, bc3 = st.columns([2, 2, 1])
+        with bc1:
+            st.markdown("**⛽ Combustível**")
+            novo_bud_comb = st.number_input("Orçamento (R$)", value=_bud_comb, min_value=0.0,
+                                            step=50.0, format="%.0f", key="bud_comb",
+                                            label_visibility="collapsed")
+            pct_c = int(min(_gasto_comb / _bud_comb * 100, 100)) if _bud_comb > 0 else 0
+            st.progress(pct_c / 100)
+            st.caption(f"Gasto: R$ {_gasto_comb:,.2f} · Restante: **R$ {_rest_comb:,.2f}**")
+        with bc2:
+            st.markdown("**🛒 Feira**")
+            novo_bud_feira = st.number_input("Orçamento (R$)", value=_bud_feira, min_value=0.0,
+                                             step=50.0, format="%.0f", key="bud_feira",
+                                             label_visibility="collapsed")
+            pct_f = int(min(_gasto_feira / _bud_feira * 100, 100)) if _bud_feira > 0 else 0
+            st.progress(pct_f / 100)
+            st.caption(f"Gasto: R$ {_gasto_feira:,.2f} · Restante: **R$ {_rest_feira:,.2f}**")
+        with bc3:
+            st.write(""); st.write("")
+            if st.button("💾", key="bud_salvar", help="Salvar orçamentos", use_container_width=True):
+                set_config("budget_combustivel", novo_bud_comb)
+                set_config("budget_feira", novo_bud_feira)
+                st.success("Salvo!")
+                st.rerun()
+            _label_zero = "✓ zerado" if _zerado else "🔄 Zerar"
+            if st.button(_label_zero, key="bud_zerar", use_container_width=True,
+                         help="Zerar provisões do mês (use após lançar tudo)"):
+                set_config(f"budget_zerado_{mes}", "0" if _zerado else "1")
+                st.rerun()
+
     # ── Novo lançamento (sem st.form → checkbox reativo) ──────────────────────
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
@@ -1023,6 +1071,10 @@ elif pagina == "Lançamentos":
                 sub_s = None
             chave = (c, sub_s)
             tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
+        # Adiciona provisão restante ao total Santander
+        _prov = _rest_comb + _rest_feira
+        if _prov > 0:
+            tot_cartao[("Santander", None)] = tot_cartao.get(("Santander", None), 0.0) + _prov
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
