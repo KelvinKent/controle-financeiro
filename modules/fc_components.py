@@ -251,7 +251,7 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
     """`qtd` (opcional): legenda menor (ex.: '3 lançamentos')."""
     grad = (CARTAO_GRAD.get((cartao, subtipo))
             or CARTAO_GRAD.get((cartao, None)) or "#444")
-    fg = "#F7C15F" if cartao == "C6" else "#fff"
+    fg = "#fff"
     label = f"{cartao} {subtipo}" if subtipo else cartao
     sombras = ["0 0 0 2px rgba(255,255,255,0.9) inset, 0 12px 26px rgba(0,0,0,0.4)"] if ativo \
         else ["0 8px 20px rgba(0,0,0,0.35)"]

@@ -129,6 +129,10 @@ st.html("""
 <style>
   .fc-card-label { font-size:13px; color:#aaa; margin-bottom:4px; }
   .fc-card-value { font-size:1.4rem; font-weight:700; }
+  /* Impede quebra de texto em todos os botões */
+  button[data-testid="baseButton-secondary"] p,
+  button[data-testid="baseButton-primary"] p,
+  button[data-testid="baseButton-destructive"] p { white-space: nowrap !important; }
 </style>
 """)
 
@@ -1311,7 +1315,7 @@ elif pagina == "Fixos":
                 f'</div>'
             )
 
-        hc = st.columns([6, 0.6, 0.6, 1.0])
+        hc = st.columns([6, 0.6, 0.6, 1.4])
         hc[0].html(
             '<div style="display:flex;color:#666;font-size:11px;text-transform:uppercase;'
             'letter-spacing:.6px;font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0">'
@@ -1323,7 +1327,7 @@ elif pagina == "Fixos":
         for _, row in fixos.iterrows():
             fid = int(row["id"])
             ativo = bool(row.get("ativo", True))
-            rc = st.columns([6, 0.6, 0.6, 1.0])
+            rc = st.columns([6, 0.6, 0.6, 1.4])
             rc[0].html(_cell_fixo(row))
             if rc[1].button("✏️", key=f"efx_{fid}", help="Editar"):
                 st.session_state.editando_fixo_id = fid
