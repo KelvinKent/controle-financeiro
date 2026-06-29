@@ -305,7 +305,7 @@ if pagina == "Dashboard":
                 st.success("Salário atualizado!")
                 st.rerun()
     else:
-        col1, col2, col3 = st.columns([1, 1, 2])
+        col1, col2, col3 = st.columns([2, 2, 1])
         with col1:
             novo_sal_k = st.number_input(f"Salário {cfg.get('nome_kelvin','Kelvin')} (R$)",
                 value=sal_k, min_value=0.0, step=100.0, format="%.2f", key="sal_k")
@@ -314,7 +314,7 @@ if pagina == "Dashboard":
                 value=sal_t, min_value=0.0, step=100.0, format="%.2f", key="sal_t")
         with col3:
             st.write(""); st.write("")
-            if st.button("💾 Salvar salários"):
+            if st.button("💾 Salvar", help="Salvar salários", use_container_width=True):
                 upsert_mes(mes, novo_sal_k, novo_sal_t)
                 st.success("Salários atualizados!")
                 st.rerun()
@@ -1021,33 +1021,31 @@ elif pagina == "Lançamentos":
             tot_cartao[chave] = tot_cartao.get(chave, 0.0) + float(r["valor"])
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
-        cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
-        def _fmt_brl(v):
-            return "R$ " + f"{v:,.0f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
+        # Visual: todos os cards num único bloco HTML (flex row, sem restrição de coluna)
+        cards_visuais = "".join(
+            card_cartao(c, tot, sub_s,
+                        ativo=(c in filtro_cartao) and
+                              (sub_s is None or sub_s in sub_filtro_ativo.get(c, [])))
+            for (c, sub_s), tot in cartoes_ordenados
+        )
+        st.html(f'<div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:6px">'
+                f'{cards_visuais}</div>')
+
+        # Botões de filtro: linha de botões abaixo, um por cartão
+        cols_btns = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
         for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
             ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
             label_banco = f"{c} {sub_s}" if sub_s else c
-            grad = CARTAO_GRAD.get((c, sub_s), CARTAO_GRAD.get((c, None), "#444"))
-            fg = "#F7C15F" if c == "C6" else "#fff"
-            anel = "0 0 0 2.5px rgba(255,255,255,0.85) inset, 0 8px 20px rgba(0,0,0,.35)" if ativo \
-                   else "0 8px 20px rgba(0,0,0,.35)"
-            with cols_cards[i]:
-                st.markdown(f'<span class="cc-{i}"></span>', unsafe_allow_html=True)
-                clicado = st.button(f"{label_banco}\n{_fmt_brl(tot)}",
-                                    key=f"cardbtn_cartao_{i}", use_container_width=True)
-                st.markdown(f"""<style>
-                    span.cc-{i} + div button {{
-                        background:{grad} !important; color:{fg} !important;
-                        border:none !important; border-radius:16px !important;
-                        min-height:80px !important; font-weight:700 !important;
-                        white-space:pre-line !important; line-height:1.5 !important;
-                        font-size:13px !important; box-shadow:{anel} !important;
-                        padding:12px 14px !important;
-                    }}
-                    span.cc-{i} + div button:hover {{ filter:brightness(1.08) !important; }}
-                </style>""", unsafe_allow_html=True)
+            with cols_btns[i]:
+                clicado = st.button(
+                    "✓ ativo" if ativo else "filtrar",
+                    key=f"cardbtn_cartao_{i}",
+                    use_container_width=True,
+                    type="primary" if ativo else "secondary",
+                    help=label_banco,
+                )
             if clicado:
                 st.session_state["_toggle_cartao_request"] = (c, sub_s)
                 st.rerun()
