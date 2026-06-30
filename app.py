@@ -1654,14 +1654,14 @@ Regras:
         banco_sel = cb1.selectbox("Cartão", CARTOES, key="imp_banco_sel")
         subtipo_sel = None
         if banco_sel == "Santander":
-            sa_atual = st.session_state.get("imp_subtipo_santander") or "Regular"
-            sa_idx = SUBTIPOS_SANTANDER.index(sa_atual) if sa_atual in SUBTIPOS_SANTANDER else 0
-            subtipo_sel = cb2.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=sa_idx,
+            if "imp_subtipo_santander" not in st.session_state:
+                st.session_state["imp_subtipo_santander"] = "Regular"
+            subtipo_sel = cb2.radio("Tipo Santander", SUBTIPOS_SANTANDER,
                                      horizontal=True, key="imp_subtipo_santander")
         elif banco_sel == "Itaú":
-            it_atual = st.session_state.get("imp_subtipo_itau") or "Visa"
-            it_idx = SUBTIPOS_ITAU.index(it_atual) if it_atual in SUBTIPOS_ITAU else 0
-            subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=it_idx,
+            if "imp_subtipo_itau" not in st.session_state:
+                st.session_state["imp_subtipo_itau"] = "Visa"
+            subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU,
                                      horizontal=True, key="imp_subtipo_itau")
         badge_det = bank_badge(banco_sel, subtipo_sel)
         st.html(f'<div style="font-size:14px;margin:4px 0 8px">{badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
