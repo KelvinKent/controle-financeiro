@@ -1726,9 +1726,28 @@ Regras:
 
         rows = st.session_state["imp_rows"]
 
+        # Controle rápido de valor Thais para todos os lançamentos
+        _div_t_imp = int(get_config().get("divisao_thais", 20))
+        _nome_pessoa_imp = pessoa_imp.strip() or "Thais"
+        _ta1, _ta2, _ta3 = st.columns([2, 1.5, 1.5])
+        _aplicar_pct = _ta1.checkbox(
+            f"Aplicar {_div_t_imp}% de {_nome_pessoa_imp} em todos os selecionados",
+            key="imp_aplicar_pct_thais"
+        )
+        _pct_manual = _ta2.number_input(
+            f"% {_nome_pessoa_imp}", min_value=0, max_value=100,
+            value=_div_t_imp, step=1, key="imp_pct_thais_manual",
+            label_visibility="collapsed" if not _aplicar_pct else "visible"
+        )
+        if _aplicar_pct:
+            for _i, _r in enumerate(rows):
+                if _r.get("_ativo", True):
+                    _vt = round(float(_r["valor"]) * _pct_manual / 100, 2)
+                    _r["_valor_thais"] = _vt
+                    st.session_state[f"imp_valthais_{_i}"] = _vt
+
         # Cabeçalho
         col_widths = [0.4, 2.1, 1.2, 0.6, 0.8, 1.0, 0.6, 0.6, 1.1]
-        _nome_pessoa_imp = pessoa_imp.strip() or "Thais"
         col_labels = ["✓", "Descrição", "Categoria", "Fixo", "Valor", f"{_nome_pessoa_imp} paga (R$)", "Parc.", "Total", "Tipo"]
         hc = st.columns(col_widths)
         for col, label in zip(hc, col_labels):
