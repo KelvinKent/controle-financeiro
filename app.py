@@ -11,6 +11,7 @@ from modules.db import (
     db_exists, get_meses, get_mes, upsert_mes, get_lancamentos,
     add_lancamento, update_lancamento, delete_lancamento, get_config, set_config,
     resumo_mes, CATEGORIAS, CARTOES, SUBTIPOS_SANTANDER, SUBTIPOS_ITAU, SUBTIPOS_ITAU_KELVIN, CORES_CARTAO,
+    corrigir_parcela_atual_grupo,
     get_fixos, load_sheet, save_sheet, aplicar_fixos_ao_mes,
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
@@ -1167,6 +1168,22 @@ elif pagina == "Lançamentos":
             st.caption(descricao_ed)
             edit_ver = st.session_state.get(f"edit_ver_{lid_ed}", 0)
             campos_ed = form_lancamento(f"edit_{lid_ed}_{edit_ver}", dados=dados_ed)
+
+            # Campo de correção de parcela_atual (só para parcelados com ? no badge)
+            id_grupo = dados_ed.get("id_grupo")
+            _pa_atual = dados_ed.get("parcela_atual")
+            _pa_atual = int(_pa_atual) if _pa_atual is not None and not pd.isna(_pa_atual) else None
+            nova_parcela_inicial = None
+            _tipo_ed = campos_ed.get("tipo") or dados_ed.get("tipo_parcela")
+            if _tipo_ed in ("parcelado", "ULTIMA") and id_grupo and not pd.isna(id_grupo):
+                if _pa_atual is None:
+                    st.divider()
+                    nova_parcela_inicial = st.number_input(
+                        "Nº desta parcela (corrigir sequência)", min_value=1, max_value=99,
+                        value=1, step=1, key="ed_parcela_inicial",
+                        help="Define o número desta parcela e resequencia as seguintes automaticamente"
+                    )
+
             ce1, ce2 = st.columns(2)
             if ce1.button("💾", use_container_width=True, key="btn_salvar_ed", help="Salvar alterações"):
                 update_lancamento(lid_ed,
@@ -1177,8 +1194,13 @@ elif pagina == "Lançamentos":
                     total_parcelas=campos_ed["total_parc"],
                     subtipo_cartao=campos_ed["subtipo"],
                 )
-                id_grupo = dados_ed.get("id_grupo")
-                if campos_ed.get("propagar_grupo") and id_grupo and not pd.isna(id_grupo):
+                if nova_parcela_inicial is not None and id_grupo and not pd.isna(id_grupo):
+                    n_cor = corrigir_parcela_atual_grupo(
+                        int(id_grupo), dados_ed.get("mes_ano"), int(nova_parcela_inicial)
+                    )
+                    if n_cor > 0:
+                        st.toast(f"Sequência corrigida em {n_cor} parcela(s).")
+                elif campos_ed.get("propagar_grupo") and id_grupo and not pd.isna(id_grupo):
                     n_prop = propagar_parcela_grupo(
                         int(id_grupo), dados_ed.get("mes_ano"),
                         valor=campos_ed["valor"], categoria=campos_ed["categoria"],

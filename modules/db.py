@@ -652,6 +652,33 @@ def update_lancamento(lancamento_id: int, **campos):
     save_sheet("lancamentos", df)
 
 
+def corrigir_parcela_atual_grupo(id_grupo: int, mes_ano_de: str, parcela_inicial: int) -> int:
+    """Resequencia parcela_atual a partir de `mes_ano_de`:
+    o lançamento nesse mês fica com `parcela_inicial`, o seguinte +1, etc.
+    Retorna quantos registros foram atualizados."""
+    df = load_sheet("lancamentos")
+    if df.empty:
+        return 0
+    mask = ((df["id_grupo"] == id_grupo)
+            & (df["mes_ano"] >= mes_ano_de)
+            & (df["tipo_parcela"].isin(["parcelado", "ULTIMA"])))
+    ids_ordenados = df.loc[mask].sort_values("mes_ano")["id"].tolist()
+    if not ids_ordenados:
+        return 0
+    if USE_POSTGRES:
+        from sqlalchemy import text
+        with _engine.begin() as conn:
+            for i, rid in enumerate(ids_ordenados):
+                conn.execute(text(
+                    'UPDATE lancamentos SET parcela_atual = :pa WHERE id = :id AND usuario = :u'
+                ), {"pa": parcela_inicial + i, "id": int(rid), "u": _usuario_atual})
+    else:
+        for i, rid in enumerate(ids_ordenados):
+            df.loc[df["id"] == rid, "parcela_atual"] = parcela_inicial + i
+        save_sheet("lancamentos", df)
+    return len(ids_ordenados)
+
+
 def propagar_parcela_grupo(id_grupo: int, mes_ano_de: str, **campos) -> int:
     """Aplica os mesmos campos (valor, valor_thais, pessoa_thais, categoria...) às demais
     parcelas (parcelado/ULTIMA) do grupo a partir de `mes_ano_de` (inclusive) — usado ao
