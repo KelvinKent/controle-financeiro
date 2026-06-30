@@ -199,8 +199,10 @@ def bank_badge(cartao: str, subtipo: Optional[str] = None) -> str:
 # ──────────────────────────────────────────────────────────────────────────────
 # 2. Chip de tipo de parcela — modernizado (raio 5px, padding maior)
 # ──────────────────────────────────────────────────────────────────────────────
-def tipo_chip(tipo: str) -> str:
+def tipo_chip(tipo: str, label_override: Optional[str] = None) -> str:
     bg, fg, label = CHIP.get(tipo, ("#2a2a2a", "#aaa", str(tipo)))
+    if label_override:
+        label = label_override
     return (f'<span style="background:{bg};color:{fg};padding:2px 8px;border-radius:5px;'
             f'font-size:11px;font-weight:600;white-space:nowrap">{label}</span>')
 
@@ -365,11 +367,21 @@ _LANC_CSS = """
 _LANC_CSS_INJECTED = False
 
 
+def _parc_label(tipo: str, parcela_atual: Optional[int], total_parcelas: Optional[int]) -> Optional[str]:
+    """Retorna '2 de 5' para parcelado, 'ÚLTIMA' para ULTIMA, None para outros."""
+    if tipo == "ULTIMA":
+        return "ÚLTIMA"
+    if tipo == "parcelado" and parcela_atual is not None and total_parcelas is not None:
+        return f"{int(parcela_atual)} de {int(total_parcelas)}"
+    return None
+
+
 def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "",
                    tipo: str = "única", faltam: str = "—",
                    subtipo: Optional[str] = None, conferido: bool = False,
                    pessoa: Optional[str] = None, valor_pessoa: Optional[float] = None,
                    data: str = "", parcela: Optional[str] = None,
+                   parcela_atual: Optional[int] = None, total_parcelas: Optional[int] = None,
                    aberto: bool = False) -> str:
     """`data` e `parcela` (opcionais) aparecem no detalhe expandido.
     `aberto=True` renderiza o card já expandido."""
@@ -416,7 +428,7 @@ def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "
         + f'<div class="fc-lanc-ic" style="background:{_rgba(cat_cor, 0.14)};color:{cat_cor}">{inicial}</div>'
         + f'<div class="fc-lanc-main">'
         + f'<div class="fc-lanc-title"><span class="fc-lanc-desc">{descricao}</span>{check}</div>'
-        + f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo)}</div>'
+        + f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo, _parc_label(tipo, parcela_atual, total_parcelas))}</div>'
         + f'</div>'
         + f'<div class="fc-lanc-right">'
         + f'<div class="fc-lanc-val" style="color:{cor_val}">{_br(valor)}</div>'

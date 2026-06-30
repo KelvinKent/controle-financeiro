@@ -1132,6 +1132,10 @@ elif pagina == "Lançamentos":
             rc[0].checkbox("Conferido", value=conf_atual, key=f"conf_{lid}",
                            on_change=_toggle_conferido, args=(lid, f"conf_{lid}"),
                            label_visibility="collapsed")
+            _pa = row.get("parcela_atual")
+            _tp = row.get("total_parcelas")
+            _pa = int(_pa) if _pa is not None and not pd.isna(_pa) else None
+            _tp = int(_tp) if _tp is not None and not pd.isna(_tp) else None
             rc[1].html(lancamento_row(
                 descricao=_fmt_desc(row["descricao"]),
                 cartao=str(row["cartao"]),
@@ -1143,6 +1147,8 @@ elif pagina == "Lançamentos":
                 conferido=conf_atual,
                 pessoa=nome_p,
                 valor_pessoa=val_p,
+                parcela_atual=_pa,
+                total_parcelas=_tp,
             ))
             if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
