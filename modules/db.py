@@ -102,7 +102,7 @@ def _next_id(sheet_name: str) -> int:
     return int(df["id"].max()) + 1
 
 CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Reforma", "Negócios", "Metinha", "Livre"]
-CARTOES = ["Santander", "Itaú", "C6"]
+CARTOES = ["Santander", "Itaú", "C6", "Outros"]
 SUBTIPOS_SANTANDER = []  # Santander sem subtipo — unificado
 SUBTIPOS_ITAU = ["Visa", "Mastercard", "LATAM Pass"]
 SUBTIPOS_ITAU_KELVIN = ["Visa", "Mastercard"]
@@ -113,6 +113,7 @@ CORES_CARTAO = {
     "Santander": {"bg": "#EC0000", "text": "#FFFFFF"},
     "C6":        {"bg": "#242424", "text": "#F7C15F"},
     "Santander Físico": {"bg": "#A80000", "text": "#FFFFFF"},
+    "Outros":    {"bg": "#374151", "text": "#FFFFFF"},
 }
 
 
