@@ -274,7 +274,7 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
         f'width:100%;box-sizing:border-box;font-family:inherit;box-shadow:{", ".join(sombras)};{ts}'
         f'display:flex;flex-direction:column;gap:4px">'
         f'<span style="font-size:12px;font-weight:600;opacity:.9;color:{fg_label}">{label}</span>'
-        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg_value}">{_br(total, 0)}</span>'
+        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg_value}">{_br(total, 2)}</span>'
         f'{sub}</div>'
     )
 
