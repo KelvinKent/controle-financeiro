@@ -1027,7 +1027,7 @@ elif pagina == "Lançamentos":
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
         campos = form_lancamento(f"novo_{ver}")
-        if st.button("💾 Salvar", use_container_width=True, key=f"btn_novo_{ver}"):
+        if st.button("💾", use_container_width=True, key=f"btn_novo_{ver}", help="Salvar lançamento"):
             if salvar_campos(campos):
                 st.session_state.form_novo_ver = ver + 1
                 st.rerun()
@@ -1163,7 +1163,7 @@ elif pagina == "Lançamentos":
             edit_ver = st.session_state.get(f"edit_ver_{lid_ed}", 0)
             campos_ed = form_lancamento(f"edit_{lid_ed}_{edit_ver}", dados=dados_ed)
             ce1, ce2 = st.columns(2)
-            if ce1.button("💾 Salvar", use_container_width=True, key="btn_salvar_ed"):
+            if ce1.button("💾", use_container_width=True, key="btn_salvar_ed", help="Salvar alterações"):
                 update_lancamento(lid_ed,
                     cartao=campos_ed["cartao"], valor=campos_ed["valor"],
                     descricao=campos_ed["descricao"], categoria=campos_ed["categoria"],
@@ -1183,7 +1183,7 @@ elif pagina == "Lançamentos":
                         st.toast(f"Valor atualizado também nas próximas {n_prop - 1} parcela(s) deste parcelamento.")
                 st.session_state.editando_id = None
                 st.rerun()
-            if ce2.button("✕ Cancelar", use_container_width=True, key="btn_cancel_ed"):
+            if ce2.button("✕", use_container_width=True, key="btn_cancel_ed", help="Cancelar"):
                 st.session_state.editando_id = None
                 st.rerun()
 
@@ -1422,7 +1422,7 @@ elif pagina == "Fixos":
                     e_vt = gp2.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f",
                         value=float(ed.get("valor_thais") or 0) if not pd.isna(ed.get("valor_thais")) else 0.0, key="efx_vt")
                 gb1, gb2 = st.columns(2)
-                if gb1.button("💾 Salvar fixo", use_container_width=True, key="efx_salvar"):
+                if gb1.button("💾", use_container_width=True, key="efx_salvar", help="Salvar fixo"):
                     update_fixo(st.session_state.editando_fixo_id,
                         cartao=e_cartao, subtipo_cartao=e_subtipo, descricao=e_desc,
                         categoria=e_cat, valor_estimado=e_val,
@@ -1430,7 +1430,7 @@ elif pagina == "Fixos":
                         valor_thais=e_vt if e_div else None)
                     st.session_state.editando_fixo_id = None
                     st.rerun()
-                if gb2.button("✕ Cancelar", use_container_width=True, key="efx_cancelar"):
+                if gb2.button("✕", use_container_width=True, key="efx_cancelar", help="Cancelar"):
                     st.session_state.editando_fixo_id = None
                     st.rerun()
             else:
@@ -1865,7 +1865,7 @@ elif pagina == "Configurações":
         if div_k + div_t != 100:
             st.warning(f"A soma deve ser 100%. Atualmente: {div_k + div_t}%")
 
-        if st.button("💾 Salvar", disabled=(div_k + div_t != 100), help="Salvar configurações"):
+        if st.button("💾", disabled=(div_k + div_t != 100), help="Salvar configurações"):
             set_config("nome_kelvin", nome_k)
             set_config("nome_thais", nome_t)
             set_config("divisao_kelvin", div_k)
