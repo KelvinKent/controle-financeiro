@@ -1079,6 +1079,8 @@ elif pagina == "Lançamentos":
         if _prov > 0:
             tot_cartao[("Santander", None)] = tot_cartao.get(("Santander", None), 0.0) + _prov
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
+        if ("Outros", None) not in tot_cartao:
+            tot_cartao[("Outros", None)] = 0.0
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         sub_filtro_ativo = {"Itaú": filtro_subtipo_itau}
 
