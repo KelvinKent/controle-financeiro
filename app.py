@@ -812,7 +812,7 @@ elif pagina == "Lançamentos":
 
         subtipo = None
         if cartao == "Santander":
-            sub_atual = d.get("subtipo_cartao") or "Regular"
+            sub_atual = d.get("subtipo_cartao") or "Virtual"
             sub_idx = SUBTIPOS_SANTANDER.index(sub_atual) if sub_atual in SUBTIPOS_SANTANDER else 0
             subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=sub_idx,
                 horizontal=True, key=f"{prefixo}_subtipo")
@@ -1564,7 +1564,7 @@ elif pagina == "Importar":
 Retorne APENAS um JSON válido com esta estrutura (sem texto extra, sem markdown):
 {
   "banco": "Santander|Itaú|C6",
-  "subtipo": "Regular|Físico|null",
+  "subtipo": "Virtual|Físico|null",
   "lancamentos": [
     {
       "descricao": "nome do lançamento",
@@ -1582,7 +1582,7 @@ Regras:
 - Se aparecer "2/5" ou "Parc 2 de 5", parcela_atual=2 e total_parcelas=5
 - total_parcelas representa as parcelas RESTANTES incluindo a atual
 - banco: identifique pelo visual, cores ou nome visível (Santander=vermelho, Itaú=laranja, C6=preto)
-- subtipo: "Físico" se for cartão físico Santander, "Regular" para virtual/padrão, null para outros bancos
+- subtipo: "Físico" se for cartão físico Santander, "Virtual" para virtual/padrão, null para outros bancos
 - categoria_sugerida: escolha a mais adequada pelo nome do estabelecimento"""
 
             todos_lancamentos = []
@@ -1644,7 +1644,7 @@ Regras:
         if st.session_state.get("imp_banco_src") != id(lancamentos_ia):
             st.session_state["imp_banco_sel"] = banco_det if banco_det in CARTOES else "Santander"
             if banco_det == "Santander":
-                st.session_state["imp_subtipo_santander"] = subtipo_det or "Regular"
+                st.session_state["imp_subtipo_santander"] = subtipo_det or "Virtual"
             elif banco_det == "Itaú":
                 st.session_state["imp_subtipo_itau"] = subtipo_det or "Visa"
             st.session_state["imp_banco_src"] = id(lancamentos_ia)
@@ -1655,7 +1655,7 @@ Regras:
         subtipo_sel = None
         if banco_sel == "Santander":
             if "imp_subtipo_santander" not in st.session_state:
-                st.session_state["imp_subtipo_santander"] = "Regular"
+                st.session_state["imp_subtipo_santander"] = "Virtual"
             subtipo_sel = cb2.radio("Tipo Santander", SUBTIPOS_SANTANDER,
                                      horizontal=True, key="imp_subtipo_santander")
         elif banco_sel == "Itaú":
