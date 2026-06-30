@@ -105,6 +105,7 @@ CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Refo
 CARTOES = ["Santander", "Itaú", "C6"]
 SUBTIPOS_SANTANDER = []  # Santander sem subtipo — unificado
 SUBTIPOS_ITAU = ["Visa", "Mastercard", "LATAM Pass"]
+SUBTIPOS_ITAU_KELVIN = ["Visa", "Mastercard"]
 TIPOS = ["única", "FIXO", "ULTIMA"]
 
 CORES_CARTAO = {

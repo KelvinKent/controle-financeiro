@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from modules.db import (
     db_exists, get_meses, get_mes, upsert_mes, get_lancamentos,
     add_lancamento, update_lancamento, delete_lancamento, get_config, set_config,
-    resumo_mes, CATEGORIAS, CARTOES, SUBTIPOS_SANTANDER, SUBTIPOS_ITAU, CORES_CARTAO,
+    resumo_mes, CATEGORIAS, CARTOES, SUBTIPOS_SANTANDER, SUBTIPOS_ITAU, SUBTIPOS_ITAU_KELVIN, CORES_CARTAO,
     get_fixos, load_sheet, save_sheet, aplicar_fixos_ao_mes,
     criar_grupo_parcelamento, get_grupos_ativos, cancelar_parcelas_restantes,
     _proximo_mes, get_orcamentos, set_orcamento, delete_orcamento, calcular_divisao_mes,
@@ -262,6 +262,8 @@ with st.sidebar:
 mes = st.session_state.mes_selecionado
 mes_label = MES_LABELS.get(mes, mes)
 cfg = get_config()
+# Lista de bandeiras Itaú visível na UI varia por usuário
+_ITAU_UI = SUBTIPOS_ITAU if get_usuario_atual() == "mae" else SUBTIPOS_ITAU_KELVIN
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -811,8 +813,8 @@ elif pagina == "Lançamentos":
         subtipo = None
         if cartao == "Itaú":
             sub_atual = d.get("subtipo_cartao") or "Visa"
-            sub_idx = SUBTIPOS_ITAU.index(sub_atual) if sub_atual in SUBTIPOS_ITAU else 0
-            subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=sub_idx,
+            sub_idx = _ITAU_UI.index(sub_atual) if sub_atual in _ITAU_UI else 0
+            subtipo = st.radio("Bandeira Itaú", _ITAU_UI, index=sub_idx,
                 horizontal=True, key=f"{prefixo}_subtipo_itau")
 
         descricao = st.text_input("Descrição", value=d.get("descricao", ""), key=f"{prefixo}_desc")
@@ -950,11 +952,11 @@ elif pagina == "Lançamentos":
     fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 1.5, 1.5, 1.5])
     if "lanc_filtro_subtipo_itau" in st.session_state:
         st.session_state["lanc_filtro_subtipo_itau"] = [
-            v for v in st.session_state["lanc_filtro_subtipo_itau"] if v in SUBTIPOS_ITAU]
+            v for v in st.session_state["lanc_filtro_subtipo_itau"] if v in _ITAU_UI]
     filtro_cat = fc1.multiselect("Categoria", CATEGORIAS, key="lanc_filtro_cat")
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"], key="lanc_filtro_tipo")
     filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
-    filtro_subtipo_itau = fc4.multiselect("Bandeira Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
+    filtro_subtipo_itau = fc4.multiselect("Bandeira Itaú", _ITAU_UI, key="lanc_filtro_subtipo_itau")
     filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
     filtro_subtipo = []  # Santander sem filtro de subtipo
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
@@ -1296,7 +1298,7 @@ elif pagina == "Fixos":
         f_desc = ff2.text_input("Descrição", key="f_desc")
         f_subtipo = None
         if f_cartao == "Itaú":
-            f_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, horizontal=True, key="f_subtipo_itau")
+            f_subtipo = st.radio("Bandeira Itaú", _ITAU_UI, horizontal=True, key="f_subtipo_itau")
         ff3, ff4 = st.columns(2)
         f_cat = ff3.selectbox("Categoria", CATEGORIAS, key="f_cat")
         f_val = ff4.number_input("Valor estimado (R$)", min_value=0.0, step=0.01, format="%.2f", key="f_val")
@@ -1395,8 +1397,8 @@ elif pagina == "Fixos":
                 _sub_atual = ed.get("subtipo_cartao")
                 _sub_atual = str(_sub_atual) if _sub_atual and not pd.isna(_sub_atual) else None
                 if e_cartao == "Itaú":
-                    _idx = SUBTIPOS_ITAU.index(_sub_atual) if _sub_atual in SUBTIPOS_ITAU else 0
-                    e_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=_idx,
+                    _idx = _ITAU_UI.index(_sub_atual) if _sub_atual in _ITAU_UI else 0
+                    e_subtipo = st.radio("Bandeira Itaú", _ITAU_UI, index=_idx,
                         horizontal=True, key="efx_subtipo_itau")
                 ge3, ge4 = st.columns(2)
                 e_cat = ge3.selectbox("Categoria", CATEGORIAS,
@@ -1652,7 +1654,7 @@ Regras:
         if banco_sel == "Itaú":
             if "imp_subtipo_itau" not in st.session_state:
                 st.session_state["imp_subtipo_itau"] = "Visa"
-            subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU,
+            subtipo_sel = cb2.radio("Bandeira Itaú", _ITAU_UI,
                                      horizontal=True, key="imp_subtipo_itau")
         badge_det = bank_badge(banco_sel, subtipo_sel)
         st.html(f'<div style="font-size:14px;margin:4px 0 8px">{badge_det}&nbsp;&nbsp;<span style="color:#888;font-size:12px">{len(lancamentos_ia)} lançamento(s) encontrado(s)</span></div>')
