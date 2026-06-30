@@ -65,7 +65,6 @@ CARTAO_GRAD = {
     ("Itaú", "Mastercard"):  "linear-gradient(90deg,#EB001B 0%,#EB001B 30%,#FF5F00 55%,#F79E1B 100%)",
     ("Itaú", "LATAM Pass"):  "linear-gradient(150deg,#1b2db0,#00104f)",
     ("Itaú", None):          "linear-gradient(150deg,#ff8a33,#e85d00)",
-    ("Santander", "Físico"): "linear-gradient(150deg,#c92020,#7a0000)",
     ("Santander", None):     "linear-gradient(150deg,#ff3b3b,#c20000)",
     ("C6", None):            "linear-gradient(150deg,#2c2c2c,#0a0a0a)",
 }

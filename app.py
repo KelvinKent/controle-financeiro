@@ -750,7 +750,7 @@ elif pagina == "Histórico":
 # ══════════════════════════════════════════════════════════════════════════════
 elif pagina == "Lançamentos":
     # Cada cartão com sub-bandeira tem sua própria key de filtro (multiselect).
-    SUBTIPO_FILTRO_KEY = {"Santander": "lanc_filtro_subtipo", "Itaú": "lanc_filtro_subtipo_itau"}
+    SUBTIPO_FILTRO_KEY = {"Itaú": "lanc_filtro_subtipo_itau"}
 
     # Resolve cliques nos cards de "Totais por cartão" ANTES de criar os widgets de
     # filtro (a key de um widget não pode ser escrita depois de instanciado no mesmo run).
@@ -768,11 +768,9 @@ elif pagina == "Lançamentos":
         )
         if ja_era_unico_selecionado:
             st.session_state["lanc_filtro_cartao"] = []
-            st.session_state["lanc_filtro_subtipo"] = []
             st.session_state["lanc_filtro_subtipo_itau"] = []
         else:
             st.session_state["lanc_filtro_cartao"] = [c_tog]
-            st.session_state["lanc_filtro_subtipo"] = [sub_tog] if sub_key == "lanc_filtro_subtipo" else []
             st.session_state["lanc_filtro_subtipo_itau"] = [sub_tog] if sub_key == "lanc_filtro_subtipo_itau" else []
 
     col_title, col_fixos = st.columns([5, 1])
@@ -811,12 +809,7 @@ elif pagina == "Lançamentos":
             help="Negativo = crédito (aparece em verde na tabela)")
 
         subtipo = None
-        if cartao == "Santander":
-            sub_atual = d.get("subtipo_cartao") or "Virtual"
-            sub_idx = SUBTIPOS_SANTANDER.index(sub_atual) if sub_atual in SUBTIPOS_SANTANDER else 0
-            subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=sub_idx,
-                horizontal=True, key=f"{prefixo}_subtipo")
-        elif cartao == "Itaú":
+        if cartao == "Itaú":
             sub_atual = d.get("subtipo_cartao") or "Visa"
             sub_idx = SUBTIPOS_ITAU.index(sub_atual) if sub_atual in SUBTIPOS_ITAU else 0
             subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=sub_idx,
@@ -954,18 +947,16 @@ elif pagina == "Lançamentos":
     # descartaria o estado deles nesse ciclo abortado — fazendo o filtro "sumir"
     # toda vez que um lançamento era salvo.)
     st.markdown("#### Filtrar")
-    fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2, 2, 1.3, 1.3, 1.3, 1.3])
-    # Limpa valores obsoletos do session_state antes de renderizar os multiselects
-    for _k, _opts in [("lanc_filtro_subtipo", SUBTIPOS_SANTANDER),
-                      ("lanc_filtro_subtipo_itau", SUBTIPOS_ITAU)]:
-        if _k in st.session_state:
-            st.session_state[_k] = [v for v in st.session_state[_k] if v in _opts]
+    fc1, fc2, fc3, fc4, fc5 = st.columns([2, 2, 1.5, 1.5, 1.5])
+    if "lanc_filtro_subtipo_itau" in st.session_state:
+        st.session_state["lanc_filtro_subtipo_itau"] = [
+            v for v in st.session_state["lanc_filtro_subtipo_itau"] if v in SUBTIPOS_ITAU]
     filtro_cat = fc1.multiselect("Categoria", CATEGORIAS, key="lanc_filtro_cat")
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"], key="lanc_filtro_tipo")
     filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
-    filtro_subtipo = fc4.multiselect("Santander", SUBTIPOS_SANTANDER, key="lanc_filtro_subtipo")
-    filtro_subtipo_itau = fc5.multiselect("Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
-    filtro_ordem = fc6.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
+    filtro_subtipo_itau = fc4.multiselect("Bandeira Itaú", SUBTIPOS_ITAU, key="lanc_filtro_subtipo_itau")
+    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
+    filtro_subtipo = []  # Santander sem filtro de subtipo
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
 
     if get_usuario_atual() == "mae":
@@ -1073,7 +1064,7 @@ elif pagina == "Lançamentos":
             sub = r.get("subtipo_cartao")
             sub_str = str(sub) if sub and not pd.isna(sub) else None
             if c == "Santander":
-                sub_s = "Físico" if sub_str == "Físico" else None
+                sub_s = None
             elif c == "Itaú":
                 sub_s = sub_str if sub_str in SUBTIPOS_ITAU else None
             else:
@@ -1086,7 +1077,7 @@ elif pagina == "Lançamentos":
             tot_cartao[("Santander", None)] = tot_cartao.get(("Santander", None), 0.0) + _prov
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
         cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
-        sub_filtro_ativo = {"Santander": filtro_subtipo, "Itaú": filtro_subtipo_itau}
+        sub_filtro_ativo = {"Itaú": filtro_subtipo_itau}
 
         # Cards + botão de filtro juntos em colunas iguais (alinhamento garantido)
         cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
@@ -1304,9 +1295,7 @@ elif pagina == "Fixos":
         f_cartao = ff1.selectbox("Cartão", CARTOES, key="f_cartao")
         f_desc = ff2.text_input("Descrição", key="f_desc")
         f_subtipo = None
-        if f_cartao == "Santander":
-            f_subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, horizontal=True, key="f_subtipo_santander")
-        elif f_cartao == "Itaú":
+        if f_cartao == "Itaú":
             f_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, horizontal=True, key="f_subtipo_itau")
         ff3, ff4 = st.columns(2)
         f_cat = ff3.selectbox("Categoria", CATEGORIAS, key="f_cat")
@@ -1405,11 +1394,7 @@ elif pagina == "Fixos":
                 e_subtipo = None
                 _sub_atual = ed.get("subtipo_cartao")
                 _sub_atual = str(_sub_atual) if _sub_atual and not pd.isna(_sub_atual) else None
-                if e_cartao == "Santander":
-                    _idx = SUBTIPOS_SANTANDER.index(_sub_atual) if _sub_atual in SUBTIPOS_SANTANDER else 0
-                    e_subtipo = st.radio("Tipo Santander", SUBTIPOS_SANTANDER, index=_idx,
-                        horizontal=True, key="efx_subtipo_santander")
-                elif e_cartao == "Itaú":
+                if e_cartao == "Itaú":
                     _idx = SUBTIPOS_ITAU.index(_sub_atual) if _sub_atual in SUBTIPOS_ITAU else 0
                     e_subtipo = st.radio("Bandeira Itaú", SUBTIPOS_ITAU, index=_idx,
                         horizontal=True, key="efx_subtipo_itau")
@@ -1575,7 +1560,7 @@ elif pagina == "Importar":
 Retorne APENAS um JSON válido com esta estrutura (sem texto extra, sem markdown):
 {
   "banco": "Santander|Itaú|C6",
-  "subtipo": "Virtual|Físico|null",
+  "subtipo": "Visa|Mastercard|LATAM Pass|null",
   "lancamentos": [
     {
       "descricao": "nome do lançamento",
@@ -1593,7 +1578,7 @@ Regras:
 - Se aparecer "2/5" ou "Parc 2 de 5", parcela_atual=2 e total_parcelas=5
 - total_parcelas representa as parcelas RESTANTES incluindo a atual
 - banco: identifique pelo visual, cores ou nome visível (Santander=vermelho, Itaú=laranja, C6=preto)
-- subtipo: "Físico" se for cartão físico Santander, "Virtual" para virtual/padrão, null para outros bancos
+- subtipo: bandeira do Itaú ("Visa", "Mastercard", "LATAM Pass") ou null para Santander/C6
 - categoria_sugerida: escolha a mais adequada pelo nome do estabelecimento"""
 
             todos_lancamentos = []
@@ -1664,12 +1649,7 @@ Regras:
         cb1, cb2 = st.columns(2)
         banco_sel = cb1.selectbox("Cartão", CARTOES, key="imp_banco_sel")
         subtipo_sel = None
-        if banco_sel == "Santander":
-            if "imp_subtipo_santander" not in st.session_state:
-                st.session_state["imp_subtipo_santander"] = "Virtual"
-            subtipo_sel = cb2.radio("Tipo Santander", SUBTIPOS_SANTANDER,
-                                     horizontal=True, key="imp_subtipo_santander")
-        elif banco_sel == "Itaú":
+        if banco_sel == "Itaú":
             if "imp_subtipo_itau" not in st.session_state:
                 st.session_state["imp_subtipo_itau"] = "Visa"
             subtipo_sel = cb2.radio("Bandeira Itaú", SUBTIPOS_ITAU,

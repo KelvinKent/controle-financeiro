@@ -103,7 +103,7 @@ def _next_id(sheet_name: str) -> int:
 
 CATEGORIAS = ["Essencial", "Não essencial", "Estudos", "Lazer", "Viagem", "Reforma", "Negócios", "Metinha", "Livre"]
 CARTOES = ["Santander", "Itaú", "C6"]
-SUBTIPOS_SANTANDER = ["Virtual", "Físico"]
+SUBTIPOS_SANTANDER = []  # Santander sem subtipo — unificado
 SUBTIPOS_ITAU = ["Visa", "Mastercard", "LATAM Pass"]
 TIPOS = ["única", "FIXO", "ULTIMA"]
 
