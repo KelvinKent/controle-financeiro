@@ -1773,9 +1773,11 @@ Regras:
             row["valor"] = rc[4].number_input("", value=float(row["valor"]), min_value=0.0,
                                                step=0.01, format="%.2f", key=f"imp_val_{i}",
                                                label_visibility="collapsed")
-            row["_valor_thais"] = rc[5].number_input("", value=float(row.get("_valor_thais") or 0.0),
-                                                       min_value=0.0, step=0.01, format="%.2f",
-                                                       key=f"imp_valthais_{i}", label_visibility="collapsed",
+            _vt_key = f"imp_valthais_{i}"
+            if _vt_key not in st.session_state:
+                st.session_state[_vt_key] = float(row.get("_valor_thais") or 0.0)
+            row["_valor_thais"] = rc[5].number_input("", min_value=0.0, step=0.01, format="%.2f",
+                                                       key=_vt_key, label_visibility="collapsed",
                                                        help="Quanto a Thais (ou outra pessoa) vai pagar deste item, se aplicável.")
             row["parcela_atual"] = rc[6].number_input("", value=int(row.get("parcela_atual", 1)),
                                                         min_value=1, step=1, key=f"imp_parc_{i}",
