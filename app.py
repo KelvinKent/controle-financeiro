@@ -955,6 +955,11 @@ elif pagina == "Lançamentos":
     # toda vez que um lançamento era salvo.)
     st.markdown("#### Filtrar")
     fc1, fc2, fc3, fc4, fc5, fc6 = st.columns([2, 2, 1.3, 1.3, 1.3, 1.3])
+    # Limpa valores obsoletos do session_state antes de renderizar os multiselects
+    for _k, _opts in [("lanc_filtro_subtipo", SUBTIPOS_SANTANDER),
+                      ("lanc_filtro_subtipo_itau", SUBTIPOS_ITAU)]:
+        if _k in st.session_state:
+            st.session_state[_k] = [v for v in st.session_state[_k] if v in _opts]
     filtro_cat = fc1.multiselect("Categoria", CATEGORIAS, key="lanc_filtro_cat")
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"], key="lanc_filtro_tipo")
     filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
