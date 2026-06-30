@@ -981,7 +981,7 @@ elif pagina == "Lançamentos":
     _gasto_feira = 0.0
     if not _lanc_full_bud.empty:
         _sant = _lanc_full_bud[_lanc_full_bud["cartao"] == "Santander"]
-        _gasto_comb  = float(_sant[_sant["descricao"].str.contains("combustiv", case=False, na=False)]["valor"].sum())
+        _gasto_comb  = float(_sant[_sant["descricao"].str.contains("combust", case=False, na=False)]["valor"].sum())
         _gasto_feira = float(_sant[_sant["descricao"].str.contains("feira", case=False, na=False)]["valor"].sum())
 
     _rest_comb  = max(0.0, _bud_comb  - _gasto_comb)  if not _zerado else 0.0
