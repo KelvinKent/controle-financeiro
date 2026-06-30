@@ -113,7 +113,7 @@ CORES_CARTAO = {
     "Santander": {"bg": "#EC0000", "text": "#FFFFFF"},
     "C6":        {"bg": "#242424", "text": "#F7C15F"},
     "Santander Físico": {"bg": "#A80000", "text": "#FFFFFF"},
-    "Outros":    {"bg": "#374151", "text": "#FFFFFF"},
+    "Outros":    {"bg": "#16a34a", "text": "#FFFFFF"},
 }
 
 

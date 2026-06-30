@@ -67,7 +67,7 @@ CARTAO_GRAD = {
     ("Itaú", None):          "linear-gradient(150deg,#ff8a33,#e85d00)",
     ("Santander", None):     "linear-gradient(150deg,#ff3b3b,#c20000)",
     ("C6", None):            "linear-gradient(150deg,#2c2c2c,#0a0a0a)",
-    ("Outros", None):        "linear-gradient(150deg,#4b5563,#1f2937)",
+    ("Outros", None):        "linear-gradient(150deg,#16a34a,#14532d)",
 }
 
 # Cor do texto por cartão (padrão #fff; Itaú usa azul corporativo no laranja)
