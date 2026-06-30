@@ -367,12 +367,34 @@ _LANC_CSS = """
 _LANC_CSS_INJECTED = False
 
 
+def _tipo_chip_or_empty(tipo: str, parcela_atual: Optional[int], total_parcelas: Optional[int]) -> str:
+    """Renderiza o chip de tipo; para parcelado/ULTIMA usa label com parcelas.
+    Se não houver label significativo (única parcela, dados ausentes), oculta o chip."""
+    if tipo in ("parcelado", "ULTIMA"):
+        label = _parc_label(tipo, parcela_atual, total_parcelas)
+        if label is None:
+            return ""
+        return tipo_chip(tipo, label)
+    if tipo == "única":
+        return ""  # não exibe chip para lançamentos únicos
+    return tipo_chip(tipo)
+
+
 def _parc_label(tipo: str, parcela_atual: Optional[int], total_parcelas: Optional[int]) -> Optional[str]:
-    """Retorna '2 de 5' para parcelado, 'ÚLTIMA' para ULTIMA, None para outros."""
+    """Retorna '2 de 5' para parcelado, 'ÚLTIMA' para ULTIMA, None para ocultar.
+    total_parcelas no banco = parcelas restantes (sem a atual); total real = pa + tp."""
     if tipo == "ULTIMA":
         return "ÚLTIMA"
-    if tipo == "parcelado" and parcela_atual is not None and total_parcelas is not None:
-        return f"{int(parcela_atual)} de {int(total_parcelas)}"
+    if tipo == "parcelado":
+        pa = int(parcela_atual) if parcela_atual is not None else None
+        tp = int(total_parcelas) if total_parcelas is not None else None
+        if pa is not None and tp is not None:
+            total_real = pa + tp
+            if total_real <= 1:
+                return None  # única parcela, não exibe
+            return f"{pa} de {total_real}"
+        if tp is not None and tp > 0:
+            return f"? de {tp}"
     return None
 
 
@@ -428,7 +450,7 @@ def lancamento_row(descricao: str, cartao: str, valor: float, categoria: str = "
         + f'<div class="fc-lanc-ic" style="background:{_rgba(cat_cor, 0.14)};color:{cat_cor}">{inicial}</div>'
         + f'<div class="fc-lanc-main">'
         + f'<div class="fc-lanc-title"><span class="fc-lanc-desc">{descricao}</span>{check}</div>'
-        + f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{tipo_chip(tipo, _parc_label(tipo, parcela_atual, total_parcelas))}</div>'
+        + f'<div class="fc-lanc-badges">{bank_badge(cartao, subtipo)}{_tipo_chip_or_empty(tipo, parcela_atual, total_parcelas)}</div>'
         + f'</div>'
         + f'<div class="fc-lanc-right">'
         + f'<div class="fc-lanc-val" style="color:{cor_val}">{_br(valor)}</div>'
