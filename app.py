@@ -1024,12 +1024,18 @@ elif pagina == "Lançamentos":
     st.divider()
 
     # ── Novo lançamento (sem st.form → checkbox reativo) ──────────────────────
+    # Limpa campos após salvar (sem trocar key do botão para evitar SessionInfo error)
+    if st.session_state.get("_lanc_salvo"):
+        del st.session_state["_lanc_salvo"]
+        for k in list(st.session_state.keys()):
+            if k.startswith("novo_"):
+                del st.session_state[k]
     ver = st.session_state.form_novo_ver
     with st.expander("➕ Novo lançamento", expanded=False):
         campos = form_lancamento(f"novo_{ver}")
         if st.button("💾", use_container_width=True, key=f"btn_novo_{ver}", help="Salvar lançamento"):
             if salvar_campos(campos):
-                st.session_state.form_novo_ver = ver + 1
+                st.session_state["_lanc_salvo"] = True
                 st.rerun()
 
     lanc = get_lancamentos(mes)
