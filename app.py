@@ -1262,15 +1262,18 @@ elif pagina == "Lançamentos":
                     parcela_atual=_pa,
                     total_parcelas=_tp,
                 ))
-                _ic1, _ic2 = st.columns(2)
+                _ic1, _ic2 = st.columns([1, 1])
                 _ic1.number_input(
                     "Thais R$", min_value=0.0, step=0.01, format="%.2f",
-                    key=_key_val,
+                    key=_key_val, label_visibility="collapsed",
                     on_change=_save_valor_thais, args=(lid, _key_val),
+                    help="Thais R$",
                 )
                 _ic2.text_input(
-                    "Pessoa", key=_key_pes, placeholder="Nome",
+                    "Pessoa", key=_key_pes, placeholder="Pessoa",
+                    label_visibility="collapsed",
                     on_change=_save_pessoa_thais, args=(lid, _key_pes),
+                    help="Pessoa",
                 )
             if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
