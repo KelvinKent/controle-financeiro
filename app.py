@@ -1153,17 +1153,15 @@ elif pagina == "Lançamentos":
             _render_grupo(grupo_atual, 0)
 
         if grupo_itau:
-            _col_itau_lbl, _col_itau_btn = st.columns([2, 1])
-            _col_itau_lbl.markdown(
+            st.markdown(
                 f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                f"letter-spacing:.05em;margin:12px 0 6px'>Fatura Itaú — {_label_ant_longo}</p>",
+                f"letter-spacing:.05em;margin:12px 0 4px'>Fatura Itaú — {_label_ant_longo}</p>",
                 unsafe_allow_html=True,
             )
-            _ir_ant = _col_itau_btn.button(
+            _ir_ant = st.button(
                 f"↑ Ver {_label_ant_longo}",
                 key="btn_ir_mes_anterior",
                 help=f"Ir para {_label_ant_longo} no seletor de mês",
-                use_container_width=True,
             )
             if _ir_ant and _mes_ant in meses_disponiveis:
                 st.session_state["mes_selecionado"] = _mes_ant
