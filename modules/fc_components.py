@@ -270,11 +270,11 @@ def card_cartao(cartao: str, total: float, subtipo: Optional[str] = None,
     sub = (f'<span style="font-size:11px;opacity:.7;margin-top:2px;color:{fg_value}">{qtd}</span>'
            if qtd else "")
     return (
-        f'<div style="background:{grad};border-radius:16px;padding:16px 18px;'
+        f'<div style="background:{grad};border-radius:16px;padding:22px 20px 20px;'
         f'width:100%;box-sizing:border-box;font-family:inherit;box-shadow:{", ".join(sombras)};{ts}'
-        f'display:flex;flex-direction:column;gap:4px">'
-        f'<span style="font-size:12px;font-weight:600;opacity:.9;color:{fg_label}">{label}</span>'
-        f'<span style="font-size:1.75rem;font-weight:800;letter-spacing:-.5px;color:{fg_value}">{_br(total, 2)}</span>'
+        f'display:flex;flex-direction:column;gap:6px">'
+        f'<span style="font-size:13px;font-weight:600;opacity:.9;color:{fg_label}">{label}</span>'
+        f'<span style="font-size:2.1rem;font-weight:800;letter-spacing:-.5px;color:{fg_value};line-height:1.1">{_br(total, 2)}</span>'
         f'{sub}</div>'
     )
 

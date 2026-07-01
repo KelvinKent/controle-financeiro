@@ -1094,26 +1094,61 @@ elif pagina == "Lançamentos":
         st.markdown("##### Totais por cartão no mês &nbsp;<small style='color:#666;font-weight:400'>(clique para filtrar)</small>", unsafe_allow_html=True)
         if ("Outros", None) not in tot_cartao:
             tot_cartao[("Outros", None)] = 0.0
-        cartoes_ordenados = sorted(tot_cartao.items(), key=lambda x: -x[1])
         sub_filtro_ativo = {"Itaú": filtro_subtipo_itau}
 
-        # Cards + botão de filtro juntos em colunas iguais (alinhamento garantido)
-        cols_cards = st.columns(len(cartoes_ordenados) if cartoes_ordenados else 1)
-        for i, ((c, sub_s), tot) in enumerate(cartoes_ordenados):
-            ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
-            label_banco = f"{c} {sub_s}" if sub_s else c
-            with cols_cards[i]:
-                st.html(card_cartao(c, tot, sub_s, ativo=ativo))
-                clicado = st.button(
-                    "✓" if ativo else "◎",
-                    key=f"cardbtn_cartao_{i}",
-                    use_container_width=True,
-                    type="primary" if ativo else "secondary",
-                    help=label_banco,
-                )
-            if clicado:
-                st.session_state["_toggle_cartao_request"] = (c, sub_s)
-                st.rerun()
+        # Calcula label do mês anterior (para o grupo Itaú)
+        def _mes_anterior(ma: str) -> str:
+            try:
+                a, m = int(ma[:4]), int(ma[5:7])
+                m -= 1
+                if m == 0:
+                    m, a = 12, a - 1
+                return f"{a}-{m:02d}"
+            except Exception:
+                return ma
+
+        _mes_ant = _mes_anterior(mes)
+        _label_atual = fmt_mes(mes, curto=True)
+        _label_ant = fmt_mes(_mes_ant, curto=True)
+
+        # Separa cards em dois grupos: Itaú (fatura do mês anterior) e demais (mês atual)
+        _ORDEM_ATUAL = ["Santander", "C6", "Outros"]
+        _ORDEM_ITAU  = [("Itaú", "Mastercard"), ("Itaú", "Visa"), ("Itaú", "LATAM Pass")]
+
+        grupo_atual = [(k, v) for k, v in tot_cartao.items() if k[0] in _ORDEM_ATUAL]
+        grupo_atual.sort(key=lambda x: _ORDEM_ATUAL.index(x[0][0]) if x[0][0] in _ORDEM_ATUAL else 99)
+        grupo_itau  = [(k, v) for k, v in tot_cartao.items() if k[0] == "Itaú"]
+        grupo_itau.sort(key=lambda x: next((i for i, t in enumerate(_ORDEM_ITAU) if t == x[0]), 99))
+
+        def _render_grupo(grupo, btn_offset):
+            cols = st.columns(len(grupo)) if grupo else []
+            for i, ((c, sub_s), tot) in enumerate(grupo):
+                ativo = (c in filtro_cartao) and (sub_s is None or sub_s in sub_filtro_ativo.get(c, []))
+                label_banco = f"{c} {sub_s}" if sub_s else c
+                with cols[i]:
+                    st.html(card_cartao(c, tot, sub_s, ativo=ativo))
+                    clicado = st.button(
+                        "✓" if ativo else "◎",
+                        key=f"cardbtn_cartao_{btn_offset + i}",
+                        use_container_width=True,
+                        type="primary" if ativo else "secondary",
+                        help=label_banco,
+                    )
+                if clicado:
+                    st.session_state["_toggle_cartao_request"] = (c, sub_s)
+                    st.rerun()
+
+        if grupo_atual:
+            st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
+                        f"letter-spacing:.05em;margin:0 0 6px'>{_label_atual} — fatura atual</p>",
+                        unsafe_allow_html=True)
+            _render_grupo(grupo_atual, 0)
+
+        if grupo_itau:
+            st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
+                        f"letter-spacing:.05em;margin:12px 0 6px'>{_label_ant} — fatura aberta (Itaú)</p>",
+                        unsafe_allow_html=True)
+            _render_grupo(grupo_itau, len(grupo_atual))
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
 
