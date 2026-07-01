@@ -1148,13 +1148,13 @@ elif pagina == "Lançamentos":
 
         if grupo_atual:
             st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                        f"letter-spacing:.05em;margin:0 0 6px'>{_label_atual} — fatura atual</p>",
+                        f"letter-spacing:.05em;margin:0 0 6px'>Fatura atual — {_label_atual}</p>",
                         unsafe_allow_html=True)
             _render_grupo(grupo_atual, 0)
 
         if grupo_itau:
             st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                        f"letter-spacing:.05em;margin:12px 0 6px'>Consultar mês anterior — {_label_ant_longo}</p>",
+                        f"letter-spacing:.05em;margin:12px 0 6px'>Fatura Itaú — {_label_ant_longo}</p>",
                         unsafe_allow_html=True)
             _render_grupo(grupo_itau, len(grupo_atual))
 
