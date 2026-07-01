@@ -1109,7 +1109,15 @@ elif pagina == "Lançamentos":
 
         _mes_ant = _mes_anterior(mes)
         _label_atual = fmt_mes(mes, curto=True)
+        # Mês anterior por extenso com ano curto: "Julho/26"
+        def _fmt_mes_longo_curto(ma):
+            try:
+                a, m = str(ma).split("-")
+                return f"{_MESES_PT[int(m)-1]}/{a[2:]}"
+            except Exception:
+                return ma
         _label_ant = fmt_mes(_mes_ant, curto=True)
+        _label_ant_longo = _fmt_mes_longo_curto(_mes_ant)
 
         # Separa cards em dois grupos: Itaú (fatura do mês anterior) e demais (mês atual)
         _ORDEM_ATUAL = ["Santander", "C6", "Outros"]
@@ -1146,7 +1154,7 @@ elif pagina == "Lançamentos":
 
         if grupo_itau:
             st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                        f"letter-spacing:.05em;margin:12px 0 6px'>{_label_ant} — fatura aberta (Itaú)</p>",
+                        f"letter-spacing:.05em;margin:12px 0 6px'>Consultar mês anterior — {_label_ant_longo}</p>",
                         unsafe_allow_html=True)
             _render_grupo(grupo_itau, len(grupo_atual))
 
