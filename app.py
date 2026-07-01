@@ -1197,13 +1197,25 @@ elif pagina == "Lançamentos":
         def _toggle_conferido(lid, key):
             update_lancamento(lid, conferido=bool(st.session_state[key]))
 
-        # Cabeçalho
-        hc = st.columns([0.5, 6.5, 0.6, 0.6])
+        def _save_valor_thais(lid, key):
+            v = st.session_state.get(key)
+            update_lancamento(lid, valor_thais=float(v) if v else None)
+
+        def _save_pessoa_thais(lid, key):
+            p = st.session_state.get(key, "").strip()
+            update_lancamento(lid, pessoa_thais=p if p else None)
+
+        # Cabeçalho — [✓ | lançamento | Thais R$ | Pessoa | ✏️ | 🗑]
+        _COLS = [0.5, 4.5, 1.4, 1.4, 0.6, 0.6]
+        hc = st.columns(_COLS)
         hc[0].html('<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
                    'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0;text-align:center">✓</div>')
         hc[1].html(lancamento_header())
+        for _hi, _hl in [(2, "Thais R$"), (3, "Pessoa")]:
+            hc[_hi].html(f'<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
+                         f'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 4px">{_hl}</div>')
 
-        # Linhas com checkbox Conferido + botões de ação por registro
+        # Linhas com checkbox Conferido + inputs inline + botões de ação
         for _, row in lanc.iterrows():
             lid = int(row["id"])
             conf_atual = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
@@ -1221,7 +1233,16 @@ elif pagina == "Lançamentos":
                 faltam = str(int(parc_rest))
             else:
                 faltam = "—"
-            rc = st.columns([0.5, 6.5, 0.6, 0.6])
+
+            # Inicializa session_state com valores do banco (evita conflito value= + key)
+            _key_val = f"tval_{lid}"
+            _key_pes = f"tpes_{lid}"
+            if _key_val not in st.session_state:
+                st.session_state[_key_val] = val_p if val_p is not None else 0.0
+            if _key_pes not in st.session_state:
+                st.session_state[_key_pes] = nome_p or ""
+
+            rc = st.columns(_COLS)
             rc[0].checkbox("Conferido", value=conf_atual, key=f"conf_{lid}",
                            on_change=_toggle_conferido, args=(lid, f"conf_{lid}"),
                            label_visibility="collapsed")
@@ -1243,10 +1264,20 @@ elif pagina == "Lançamentos":
                 parcela_atual=_pa,
                 total_parcelas=_tp,
             ))
-            if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
+            rc[2].number_input(
+                "Thais R$", min_value=0.0, step=0.01, format="%.2f",
+                key=_key_val, label_visibility="collapsed",
+                on_change=_save_valor_thais, args=(lid, _key_val),
+            )
+            rc[3].text_input(
+                "Pessoa", key=_key_pes, label_visibility="collapsed",
+                placeholder="Nome",
+                on_change=_save_pessoa_thais, args=(lid, _key_pes),
+            )
+            if rc[4].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
                 st.rerun()
-            if rc[3].button("🗑", key=f"del_{lid}", help="Excluir"):
+            if rc[5].button("🗑", key=f"del_{lid}", help="Excluir"):
                 delete_lancamento(lid)
                 st.rerun()
 
