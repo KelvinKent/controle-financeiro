@@ -1161,22 +1161,20 @@ elif pagina == "Lançamentos":
         _label_prox_longo = _fmt_mes_longo_curto(_mes_prox)
 
         if grupo_atual:
-            _ca_lbl, _ca_prox = st.columns([3, 1])
-            _ca_lbl.markdown(
+            st.markdown(
                 f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
                 f"letter-spacing:.05em;margin:0 0 6px'>Fatura atual — {_label_atual}</p>",
                 unsafe_allow_html=True,
             )
-            _ir_prox = _ca_prox.button(
+            _render_grupo(grupo_atual, 0)
+            _ir_prox = st.button(
                 f"Ver {_label_prox_longo} ↓",
                 key="btn_ir_mes_seguinte",
                 help=f"Ir para {_label_prox_longo} no seletor de mês",
-                use_container_width=True,
             )
             if _ir_prox and _mes_prox in meses_disponiveis:
                 st.session_state["mes_selecionado"] = _mes_prox
                 st.rerun()
-            _render_grupo(grupo_atual, 0)
 
         if grupo_itau:
             st.markdown(
