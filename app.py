@@ -1205,15 +1205,12 @@ elif pagina == "Lançamentos":
             p = st.session_state.get(key, "").strip()
             update_lancamento(lid, pessoa_thais=p if p else None)
 
-        # Cabeçalho — [✓ | lançamento | Thais R$ | Pessoa | ✏️ | 🗑]
-        _COLS = [0.5, 4.5, 1.4, 1.4, 0.6, 0.6]
+        # Cabeçalho — [✓ | lançamento | ✏️ | 🗑]
+        _COLS = [0.5, 6.5, 0.6, 0.6]
         hc = st.columns(_COLS)
         hc[0].html('<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
                    'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0;text-align:center">✓</div>')
         hc[1].html(lancamento_header())
-        for _hi, _hl in [(2, "Thais R$"), (3, "Pessoa")]:
-            hc[_hi].html(f'<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
-                         f'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 4px">{_hl}</div>')
 
         # Linhas com checkbox Conferido + inputs inline + botões de ação
         for _, row in lanc.iterrows():
@@ -1250,34 +1247,35 @@ elif pagina == "Lançamentos":
             _tp = row.get("total_parcelas")
             _pa = int(_pa) if _pa is not None and not pd.isna(_pa) else None
             _tp = int(_tp) if _tp is not None and not pd.isna(_tp) else None
-            rc[1].html(lancamento_row(
-                descricao=_fmt_desc(row["descricao"]),
-                cartao=str(row["cartao"]),
-                valor=float(row["valor"]),
-                categoria=str(row.get("categoria", "")),
-                tipo=tipo_raw,
-                faltam=faltam,
-                subtipo=subtipo_str,
-                conferido=conf_atual,
-                pessoa=nome_p,
-                valor_pessoa=val_p,
-                parcela_atual=_pa,
-                total_parcelas=_tp,
-            ))
-            rc[2].number_input(
-                "Thais R$", min_value=0.0, step=0.01, format="%.2f",
-                key=_key_val, label_visibility="collapsed",
-                on_change=_save_valor_thais, args=(lid, _key_val),
-            )
-            rc[3].text_input(
-                "Pessoa", key=_key_pes, label_visibility="collapsed",
-                placeholder="Nome",
-                on_change=_save_pessoa_thais, args=(lid, _key_pes),
-            )
-            if rc[4].button("✏️", key=f"edit_{lid}", help="Editar"):
+            with rc[1]:
+                st.html(lancamento_row(
+                    descricao=_fmt_desc(row["descricao"]),
+                    cartao=str(row["cartao"]),
+                    valor=float(row["valor"]),
+                    categoria=str(row.get("categoria", "")),
+                    tipo=tipo_raw,
+                    faltam=faltam,
+                    subtipo=subtipo_str,
+                    conferido=conf_atual,
+                    pessoa=nome_p,
+                    valor_pessoa=val_p,
+                    parcela_atual=_pa,
+                    total_parcelas=_tp,
+                ))
+                _ic1, _ic2 = st.columns(2)
+                _ic1.number_input(
+                    "Thais R$", min_value=0.0, step=0.01, format="%.2f",
+                    key=_key_val,
+                    on_change=_save_valor_thais, args=(lid, _key_val),
+                )
+                _ic2.text_input(
+                    "Pessoa", key=_key_pes, placeholder="Nome",
+                    on_change=_save_pessoa_thais, args=(lid, _key_pes),
+                )
+            if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
                 st.rerun()
-            if rc[5].button("🗑", key=f"del_{lid}", help="Excluir"):
+            if rc[3].button("🗑", key=f"del_{lid}", help="Excluir"):
                 delete_lancamento(lid)
                 st.rerun()
 
