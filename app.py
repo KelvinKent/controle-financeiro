@@ -1146,10 +1146,36 @@ elif pagina == "Lançamentos":
                     st.session_state["_toggle_cartao_request"] = (c, sub_s)
                     st.rerun()
 
+        # Calcula mês seguinte para botão de alternância
+        def _mes_seguinte(ma: str) -> str:
+            try:
+                a, m = int(ma[:4]), int(ma[5:7])
+                m += 1
+                if m == 13:
+                    m, a = 1, a + 1
+                return f"{a}-{m:02d}"
+            except Exception:
+                return ma
+
+        _mes_prox = _mes_seguinte(mes)
+        _label_prox_longo = _fmt_mes_longo_curto(_mes_prox)
+
         if grupo_atual:
-            st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                        f"letter-spacing:.05em;margin:0 0 6px'>Fatura atual — {_label_atual}</p>",
-                        unsafe_allow_html=True)
+            _ca_lbl, _ca_prox = st.columns([3, 1])
+            _ca_lbl.markdown(
+                f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
+                f"letter-spacing:.05em;margin:0 0 6px'>Fatura atual — {_label_atual}</p>",
+                unsafe_allow_html=True,
+            )
+            _ir_prox = _ca_prox.button(
+                f"Ver {_label_prox_longo} ↓",
+                key="btn_ir_mes_seguinte",
+                help=f"Ir para {_label_prox_longo} no seletor de mês",
+                use_container_width=True,
+            )
+            if _ir_prox and _mes_prox in meses_disponiveis:
+                st.session_state["mes_selecionado"] = _mes_prox
+                st.rerun()
             _render_grupo(grupo_atual, 0)
 
         if grupo_itau:
