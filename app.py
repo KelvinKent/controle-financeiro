@@ -188,6 +188,19 @@ def _check_password() -> bool:
         usuario_sel = contas_disponiveis[0]
     senha = st.text_input("Senha", type="password", label_visibility="collapsed",
                           placeholder="Senha de acesso")
+    # Injeta autocomplete correto para Safari reconhecer campo de senha e parar de perguntar
+    import streamlit.components.v1 as _cv1
+    _cv1.html("""<script>
+    (function patch() {
+        var d = window.parent.document;
+        var pw = d.querySelector('input[type="password"]');
+        if (!pw) { setTimeout(patch, 150); return; }
+        pw.setAttribute('autocomplete', 'current-password');
+        pw.setAttribute('name', 'password');
+        var txts = d.querySelectorAll('input[type="text"]');
+        txts.forEach(function(i){ i.setAttribute('autocomplete','username'); i.setAttribute('name','username'); });
+    })();
+    </script>""", height=0)
     if senha:
         if senha == senhas.get(usuario_sel):
             st.session_state["_autenticado"] = True
