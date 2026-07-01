@@ -1153,9 +1153,20 @@ elif pagina == "Lançamentos":
             _render_grupo(grupo_atual, 0)
 
         if grupo_itau:
-            st.markdown(f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
-                        f"letter-spacing:.05em;margin:12px 0 6px'>Fatura Itaú — {_label_ant_longo}</p>",
-                        unsafe_allow_html=True)
+            _col_itau_lbl, _col_itau_btn = st.columns([3, 1])
+            _col_itau_lbl.markdown(
+                f"<p style='font-size:11px;color:#888;font-weight:600;text-transform:uppercase;"
+                f"letter-spacing:.05em;margin:12px 0 6px'>Fatura Itaú — {_label_ant_longo}</p>",
+                unsafe_allow_html=True,
+            )
+            _ir_ant = _col_itau_btn.button(
+                f"↑ Acessar mês anterior",
+                key="btn_ir_mes_anterior",
+                help=f"Ir para {_label_ant_longo} no seletor de mês",
+            )
+            if _ir_ant and _mes_ant in meses_disponiveis:
+                st.session_state["mes_selecionado"] = _mes_ant
+                st.rerun()
             _render_grupo(grupo_itau, len(grupo_atual))
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
