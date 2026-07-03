@@ -1265,15 +1265,24 @@ elif pagina == "Lançamentos":
             if upd:
                 update_lancamento(lid, **upd)
 
-        # Botões de ação por linha (editar / excluir)
+        # Botões de ação por linha (editar / excluir) — lista compacta
+        st.markdown(
+            '<div style="font-size:11px;color:#666;text-transform:uppercase;'
+            'letter-spacing:.4px;margin:10px 0 2px">Editar / excluir</div>',
+            unsafe_allow_html=True,
+        )
         for _, row in lanc.iterrows():
             lid = int(row["id"])
-            _ac1, _ac2, _ac3 = st.columns([6.5, 0.6, 0.6])
-            _ac1.caption(f"↑ id {lid} — {_fmt_desc(row['descricao'])}")
-            if _ac2.button("✏️", key=f"edit_{lid}", help="Editar"):
+            _ac1, _ac2, _ac3 = st.columns([7, 0.5, 0.5], gap="small", vertical_alignment="center")
+            _ac1.markdown(
+                f'<div style="font-size:13px;line-height:1.1;margin:0;padding:6px 0">'
+                f'{_fmt_desc(row["descricao"])} <span style="color:#666">· id {lid}</span></div>',
+                unsafe_allow_html=True,
+            )
+            if _ac2.button("✏️", key=f"edit_{lid}", help="Editar", use_container_width=True):
                 st.session_state.editando_id = lid
                 st.rerun()
-            if _ac3.button("🗑", key=f"del_{lid}", help="Excluir"):
+            if _ac3.button("🗑", key=f"del_{lid}", help="Excluir", use_container_width=True):
                 delete_lancamento(lid)
                 st.rerun()
 
