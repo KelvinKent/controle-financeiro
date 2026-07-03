@@ -971,7 +971,9 @@ elif pagina == "Lançamentos":
     filtro_tipo = fc2.multiselect("Tipo", ["única", "FIXO", "ULTIMA", "parcelado"], key="lanc_filtro_tipo")
     filtro_cartao = fc3.multiselect("Cartão", CARTOES, key="lanc_filtro_cartao")
     filtro_subtipo_itau = fc4.multiselect("Bandeira Itaú", _ITAU_UI, key="lanc_filtro_subtipo_itau")
-    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais antigos", "Mais recentes"], key="lanc_filtro_ordem")
+    if "lanc_filtro_ordem" not in st.session_state:
+        st.session_state["lanc_filtro_ordem"] = "Mais recentes"
+    filtro_ordem = fc5.selectbox("Ordenar por", ["Mais recentes", "Mais antigos"], key="lanc_filtro_ordem")
     filtro_subtipo = []  # Santander sem filtro de subtipo
     busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
 
@@ -1194,91 +1196,74 @@ elif pagina == "Lançamentos":
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
 
-        def _toggle_conferido(lid, key):
-            update_lancamento(lid, conferido=bool(st.session_state[key]))
+        # ── Tabela estilo planilha ─────────────────────────────────────────────
+        def _parc_str(row):
+            pa = row.get("parcela_atual")
+            tp = row.get("total_parcelas")
+            try:
+                pa = int(pa) if pa is not None and not pd.isna(pa) else None
+                tp = int(tp) if tp is not None and not pd.isna(tp) else None
+            except Exception:
+                pa, tp = None, None
+            if pa and tp is not None:
+                return f"{pa} de {pa + tp}"
+            return ""
 
-        def _save_valor_thais(lid, key):
-            v = st.session_state.get(key)
-            update_lancamento(lid, valor_thais=float(v) if v else None)
+        _df_tbl = pd.DataFrame({
+            "id":        lanc["id"].astype(int),
+            "✓":         lanc["conferido"].fillna(False).astype(bool),
+            "Valor":     lanc["valor"].astype(float),
+            "Descrição": lanc["descricao"].astype(str),
+            "Cartão":    lanc.apply(lambda r: (f"{r['cartao']} {r['subtipo_cartao']}" if r.get("subtipo_cartao") and not pd.isna(r.get("subtipo_cartao")) else str(r["cartao"])), axis=1),
+            "Parcela":   lanc.apply(_parc_str, axis=1),
+            "Categoria": lanc["categoria"].fillna("").astype(str),
+            "Thais R$":  lanc["valor_thais"].fillna(0.0).astype(float),
+            "Pessoa":    lanc["pessoa_thais"].fillna("").astype(str),
+        })
+        _orig_tbl = _df_tbl.copy()
 
-        def _save_pessoa_thais(lid, key):
-            p = st.session_state.get(key, "").strip()
-            update_lancamento(lid, pessoa_thais=p if p else None)
+        _edited = st.data_editor(
+            _df_tbl,
+            column_config={
+                "id":        None,
+                "✓":         st.column_config.CheckboxColumn("✓",         width=40),
+                "Valor":     st.column_config.NumberColumn("Valor",       format="R$ %.2f", disabled=True, width="small"),
+                "Descrição": st.column_config.TextColumn("Descrição",     disabled=True),
+                "Cartão":    st.column_config.TextColumn("Cartão",        disabled=True, width="small"),
+                "Parcela":   st.column_config.TextColumn("Parcela",       disabled=True, width="small"),
+                "Categoria": st.column_config.TextColumn("Categoria",     disabled=True, width="medium"),
+                "Thais R$":  st.column_config.NumberColumn("Thais R$",   format="R$ %.2f", min_value=0.0, width="small"),
+                "Pessoa":    st.column_config.TextColumn("Pessoa",        width="small"),
+            },
+            use_container_width=True,
+            hide_index=True,
+            num_rows="fixed",
+            key=f"lanc_tbl_{mes}",
+        )
 
-        # Cabeçalho — [✓ | lançamento | ✏️ | 🗑]
-        _COLS = [0.5, 6.5, 0.6, 0.6]
-        hc = st.columns(_COLS)
-        hc[0].html('<div style="color:#666;font-size:10px;text-transform:uppercase;letter-spacing:.4px;'
-                   'font-weight:500;border-bottom:2px solid rgba(255,255,255,0.12);padding:6px 0;text-align:center">✓</div>')
-        hc[1].html(lancamento_header())
+        # Salva apenas linhas alteradas
+        for i in range(len(_orig_tbl)):
+            _o, _e = _orig_tbl.iloc[i], _edited.iloc[i]
+            lid = int(_o["id"])
+            upd = {}
+            if bool(_e["✓"]) != bool(_o["✓"]):
+                upd["conferido"] = bool(_e["✓"])
+            if round(float(_e["Thais R$"]), 2) != round(float(_o["Thais R$"]), 2):
+                upd["valor_thais"] = float(_e["Thais R$"]) or None
+            if str(_e["Pessoa"]).strip() != str(_o["Pessoa"]).strip():
+                upd["pessoa_thais"] = str(_e["Pessoa"]).strip() or None
+            if upd:
+                update_lancamento(lid, **upd)
 
-        # Linhas com checkbox Conferido + inputs inline + botões de ação
+        # Botões de ação por linha (editar / excluir)
         for _, row in lanc.iterrows():
             lid = int(row["id"])
-            conf_atual = bool(row.get("conferido")) if not pd.isna(row.get("conferido")) else False
-            subtipo_val = row.get("subtipo_cartao")
-            subtipo_str = str(subtipo_val) if subtipo_val and not pd.isna(subtipo_val) else None
-            pessoa_val = row.get("pessoa_thais")
-            nome_p = str(pessoa_val) if pessoa_val and not pd.isna(pessoa_val) else None
-            valor_p = row.get("valor_thais")
-            val_p = float(valor_p) if valor_p and not pd.isna(valor_p) else None
-            tipo_raw = str(row["tipo_parcela"])
-            parc_rest = row.get("total_parcelas")
-            if tipo_raw == "ULTIMA":
-                faltam = "ÚLTIMA"
-            elif tipo_raw == "parcelado" and parc_rest is not None and not pd.isna(parc_rest):
-                faltam = str(int(parc_rest))
-            else:
-                faltam = "—"
-
-            # Inicializa session_state com valores do banco (evita conflito value= + key)
-            _key_val = f"tval_{lid}"
-            _key_pes = f"tpes_{lid}"
-            if _key_val not in st.session_state:
-                st.session_state[_key_val] = val_p if val_p is not None else 0.0
-            if _key_pes not in st.session_state:
-                st.session_state[_key_pes] = nome_p or ""
-
-            rc = st.columns(_COLS)
-            rc[0].checkbox("Conferido", value=conf_atual, key=f"conf_{lid}",
-                           on_change=_toggle_conferido, args=(lid, f"conf_{lid}"),
-                           label_visibility="collapsed")
-            _pa = row.get("parcela_atual")
-            _tp = row.get("total_parcelas")
-            _pa = int(_pa) if _pa is not None and not pd.isna(_pa) else None
-            _tp = int(_tp) if _tp is not None and not pd.isna(_tp) else None
-            with rc[1]:
-                st.html(lancamento_row(
-                    descricao=_fmt_desc(row["descricao"]),
-                    cartao=str(row["cartao"]),
-                    valor=float(row["valor"]),
-                    categoria=str(row.get("categoria", "")),
-                    tipo=tipo_raw,
-                    faltam=faltam,
-                    subtipo=subtipo_str,
-                    conferido=conf_atual,
-                    pessoa=nome_p,
-                    valor_pessoa=val_p,
-                    parcela_atual=_pa,
-                    total_parcelas=_tp,
-                ))
-                _ic1, _ic2 = st.columns([1, 1])
-                _ic1.number_input(
-                    "Thais R$", min_value=0.0, step=0.01, format="%.2f",
-                    key=_key_val, label_visibility="collapsed",
-                    on_change=_save_valor_thais, args=(lid, _key_val),
-                    help="Thais R$",
-                )
-                _ic2.text_input(
-                    "Pessoa", key=_key_pes, placeholder="Pessoa",
-                    label_visibility="collapsed",
-                    on_change=_save_pessoa_thais, args=(lid, _key_pes),
-                    help="Pessoa",
-                )
-            if rc[2].button("✏️", key=f"edit_{lid}", help="Editar"):
+            _ac1, _ac2, _ac3 = st.columns([6.5, 0.6, 0.6])
+            _ac1.caption(f"↑ id {lid} — {_fmt_desc(row['descricao'])}")
+            if _ac2.button("✏️", key=f"edit_{lid}", help="Editar"):
                 st.session_state.editando_id = lid
                 st.rerun()
-            if rc[3].button("🗑", key=f"del_{lid}", help="Excluir"):
+            if _ac3.button("🗑", key=f"del_{lid}", help="Excluir"):
                 delete_lancamento(lid)
                 st.rerun()
 
