@@ -1198,6 +1198,16 @@ elif pagina == "Lançamentos":
 
         # ── Tabela estilo planilha ─────────────────────────────────────────────
         def _parc_str(row):
+            tipo = str(row.get("tipo_parcela"))
+            if tipo == "ULTIMA":
+                pa = row.get("parcela_atual")
+                try:
+                    pa = int(pa) if pa is not None and not pd.isna(pa) else None
+                except Exception:
+                    pa = None
+                return f"{pa} de {pa}" if pa and pa > 1 else "Última"
+            if tipo != "parcelado":
+                return ""
             pa = row.get("parcela_atual")
             tp = row.get("total_parcelas")
             try:
