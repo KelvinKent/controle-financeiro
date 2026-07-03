@@ -1220,7 +1220,6 @@ elif pagina == "Lançamentos":
             return ""
 
         _df_tbl = pd.DataFrame({
-            "id":        lanc["id"].astype(int),
             "✓":         lanc["conferido"].fillna(False).astype(bool),
             "Valor":     lanc["valor"].astype(float),
             "Descrição": lanc["descricao"].astype(str),
@@ -1229,13 +1228,12 @@ elif pagina == "Lançamentos":
             "Categoria": lanc["categoria"].fillna("").astype(str),
             "Thais R$":  lanc["valor_thais"].fillna(0.0).astype(float),
             "Pessoa":    lanc["pessoa_thais"].fillna("").astype(str),
-        })
+        }, index=pd.Index(lanc["id"].astype(int), name="id"))
         _orig_tbl = _df_tbl.copy()
 
         _edited = st.data_editor(
             _df_tbl,
             column_config={
-                "id":        None,
                 "✓":         st.column_config.CheckboxColumn("✓",         width=40),
                 "Valor":     st.column_config.NumberColumn("Valor",       format="R$ %.2f", width="small"),
                 "Descrição": st.column_config.TextColumn("Descrição"),
@@ -1252,20 +1250,19 @@ elif pagina == "Lançamentos":
         )
 
         # Linhas removidas na tabela (botão de excluir embutido do data_editor)
-        _ids_restantes = set(_edited["id"].dropna().astype(int))
-        _ids_removidos = set(_orig_tbl["id"].astype(int)) - _ids_restantes
+        _ids_restantes = set(int(i) for i in _edited.index)
+        _ids_removidos = set(_orig_tbl.index) - _ids_restantes
         for lid in _ids_removidos:
             delete_lancamento(int(lid))
         if _ids_removidos:
             st.rerun()
 
         # Salva apenas linhas alteradas
-        for i in range(len(_orig_tbl)):
-            _o = _orig_tbl.iloc[i]
-            lid = int(_o["id"])
+        for lid in _orig_tbl.index:
             if lid not in _ids_restantes:
                 continue
-            _e = _edited[_edited["id"] == lid].iloc[0]
+            _o = _orig_tbl.loc[lid]
+            _e = _edited.loc[lid]
             upd = {}
             if bool(_e["✓"]) != bool(_o["✓"]):
                 upd["conferido"] = bool(_e["✓"])
