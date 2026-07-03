@@ -1243,7 +1243,7 @@ elif pagina == "Lançamentos":
                 "Cartão":    st.column_config.TextColumn("Cartão",        disabled=True, width="small"),
                 "Parcela":   st.column_config.TextColumn("Parcela",       disabled=True, width="small"),
                 "Categoria": st.column_config.TextColumn("Categoria",     width="medium"),
-                "Thais R$":  st.column_config.NumberColumn("Thais R$",   format="R$ %.2f", min_value=0.0, width="small"),
+                "Thais R$":  st.column_config.NumberColumn("Valor",      format="R$ %.2f", min_value=0.0, width="small"),
                 "Pessoa":    st.column_config.TextColumn("Pessoa",        width="small"),
             },
             use_container_width=True,
