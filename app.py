@@ -1237,54 +1237,50 @@ elif pagina == "Lançamentos":
             column_config={
                 "id":        None,
                 "✓":         st.column_config.CheckboxColumn("✓",         width=40),
-                "Valor":     st.column_config.NumberColumn("Valor",       format="R$ %.2f", disabled=True, width="small"),
-                "Descrição": st.column_config.TextColumn("Descrição",     disabled=True),
+                "Valor":     st.column_config.NumberColumn("Valor",       format="R$ %.2f", width="small"),
+                "Descrição": st.column_config.TextColumn("Descrição"),
                 "Cartão":    st.column_config.TextColumn("Cartão",        disabled=True, width="small"),
                 "Parcela":   st.column_config.TextColumn("Parcela",       disabled=True, width="small"),
-                "Categoria": st.column_config.TextColumn("Categoria",     disabled=True, width="medium"),
+                "Categoria": st.column_config.TextColumn("Categoria",     width="medium"),
                 "Thais R$":  st.column_config.NumberColumn("Thais R$",   format="R$ %.2f", min_value=0.0, width="small"),
                 "Pessoa":    st.column_config.TextColumn("Pessoa",        width="small"),
             },
             use_container_width=True,
             hide_index=True,
-            num_rows="fixed",
+            num_rows="dynamic",
             key=f"lanc_tbl_{mes}",
         )
 
+        # Linhas removidas na tabela (botão de excluir embutido do data_editor)
+        _ids_restantes = set(_edited["id"].dropna().astype(int))
+        _ids_removidos = set(_orig_tbl["id"].astype(int)) - _ids_restantes
+        for lid in _ids_removidos:
+            delete_lancamento(int(lid))
+        if _ids_removidos:
+            st.rerun()
+
         # Salva apenas linhas alteradas
         for i in range(len(_orig_tbl)):
-            _o, _e = _orig_tbl.iloc[i], _edited.iloc[i]
+            _o = _orig_tbl.iloc[i]
             lid = int(_o["id"])
+            if lid not in _ids_restantes:
+                continue
+            _e = _edited[_edited["id"] == lid].iloc[0]
             upd = {}
             if bool(_e["✓"]) != bool(_o["✓"]):
                 upd["conferido"] = bool(_e["✓"])
+            if round(float(_e["Valor"]), 2) != round(float(_o["Valor"]), 2):
+                upd["valor"] = float(_e["Valor"])
+            if str(_e["Descrição"]).strip() != str(_o["Descrição"]).strip():
+                upd["descricao"] = str(_e["Descrição"]).strip()
+            if str(_e["Categoria"]).strip() != str(_o["Categoria"]).strip():
+                upd["categoria"] = str(_e["Categoria"]).strip() or None
             if round(float(_e["Thais R$"]), 2) != round(float(_o["Thais R$"]), 2):
                 upd["valor_thais"] = float(_e["Thais R$"]) or None
             if str(_e["Pessoa"]).strip() != str(_o["Pessoa"]).strip():
                 upd["pessoa_thais"] = str(_e["Pessoa"]).strip() or None
             if upd:
                 update_lancamento(lid, **upd)
-
-        # Botões de ação por linha (editar / excluir) — lista compacta
-        st.markdown(
-            '<div style="font-size:11px;color:#666;text-transform:uppercase;'
-            'letter-spacing:.4px;margin:10px 0 2px">Editar / excluir</div>',
-            unsafe_allow_html=True,
-        )
-        for _, row in lanc.iterrows():
-            lid = int(row["id"])
-            _ac1, _ac2, _ac3 = st.columns([7, 0.5, 0.5], gap="small", vertical_alignment="center")
-            _ac1.markdown(
-                f'<div style="font-size:13px;line-height:1.1;margin:0;padding:6px 0">'
-                f'{_fmt_desc(row["descricao"])} <span style="color:#666">· id {lid}</span></div>',
-                unsafe_allow_html=True,
-            )
-            if _ac2.button("✏️", key=f"edit_{lid}", help="Editar", use_container_width=True):
-                st.session_state.editando_id = lid
-                st.rerun()
-            if _ac3.button("🗑", key=f"del_{lid}", help="Excluir", use_container_width=True):
-                delete_lancamento(lid)
-                st.rerun()
 
         # Contador de conferência
         n_conf = int(lanc["conferido"].fillna(False).astype(bool).sum()) if "conferido" in lanc.columns else 0
