@@ -1267,6 +1267,10 @@ elif pagina == "Lançamentos":
             if lid not in _ids_restantes:
                 continue
             _e = _edited[_edited["id"] == lid].iloc[0]
+            # Nunca grava NaN/None em campos numéricos — célula em branco durante
+            # uma renderização quebrada não pode virar gravação silenciosa no banco.
+            if pd.isna(_e["Valor"]) or pd.isna(_e["Thais R$"]):
+                continue
             upd = {}
             if bool(_e["✓"]) != bool(_o["✓"]):
                 upd["conferido"] = bool(_e["✓"])
