@@ -975,7 +975,6 @@ elif pagina == "Lançamentos":
         st.session_state["lanc_filtro_ordem"] = "Mais recentes"
     filtro_ordem = fc5.selectbox("Ordenar por", ["Mais recentes", "Mais antigos"], key="lanc_filtro_ordem")
     filtro_subtipo = []  # Santander sem filtro de subtipo
-    busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
 
     if get_usuario_atual() == "mae":
         with st.expander("📋 Fixas (orçamento mensal)", expanded=False):
@@ -1062,8 +1061,6 @@ elif pagina == "Lançamentos":
             lanc = lanc[(lanc["cartao"] != "Santander") | lanc["subtipo_cartao"].isin(filtro_subtipo)]
         if filtro_subtipo_itau:
             lanc = lanc[(lanc["cartao"] != "Itaú") | lanc["subtipo_cartao"].isin(filtro_subtipo_itau)]
-        if busca:
-            lanc = lanc[lanc["descricao"].str.contains(busca, case=False, na=False)]
 
     # Ordenação ESTÁVEL por id (evita reorganização ao marcar/desmarcar checkbox).
     # id crescente = mais antigos primeiro, mais novos sempre no final.
@@ -1193,6 +1190,10 @@ elif pagina == "Lançamentos":
                 st.session_state["mes_selecionado"] = _mes_ant
                 st.rerun()
             _render_grupo(grupo_itau, len(grupo_atual))
+
+        busca = st.text_input("Buscar descrição", placeholder="Ex: Spotify, Uber...", key="lanc_busca")
+        if busca:
+            lanc = lanc[lanc["descricao"].str.contains(busca, case=False, na=False)]
 
         st.markdown(f"<small style='color:#888'>{len(lanc)} lançamentos exibidos · Total filtrado: <b>R$ {lanc['valor'].sum():,.2f}</b></small>", unsafe_allow_html=True)
 
