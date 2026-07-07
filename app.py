@@ -1268,20 +1268,19 @@ elif pagina == "Lançamentos":
             if lid not in _ids_restantes:
                 continue
             _e = _edited[_edited["id"] == lid].iloc[0]
-            # Nunca grava NaN/None em campos numéricos — célula em branco durante
-            # uma renderização quebrada não pode virar gravação silenciosa no banco.
-            if pd.isna(_e["Valor"]) or pd.isna(_e["Thais R$"]):
-                continue
             upd = {}
             if bool(_e["✓"]) != bool(_o["✓"]):
                 upd["conferido"] = bool(_e["✓"])
-            if round(float(_e["Valor"]), 2) != round(float(_o["Valor"]), 2):
+            # Nunca grava NaN/None em campos numéricos — célula em branco durante
+            # uma renderização quebrada não pode virar gravação silenciosa no banco.
+            # Mas isso não pode bloquear outros campos da mesma linha (ex.: ✓).
+            if not pd.isna(_e["Valor"]) and round(float(_e["Valor"]), 2) != round(float(_o["Valor"]), 2):
                 upd["valor"] = float(_e["Valor"])
             if str(_e["Descrição"]).strip() != str(_o["Descrição"]).strip():
                 upd["descricao"] = str(_e["Descrição"]).strip()
             if str(_e["Categoria"]).strip() != str(_o["Categoria"]).strip():
                 upd["categoria"] = str(_e["Categoria"]).strip() or None
-            if round(float(_e["Thais R$"]), 2) != round(float(_o["Thais R$"]), 2):
+            if not pd.isna(_e["Thais R$"]) and round(float(_e["Thais R$"]), 2) != round(float(_o["Thais R$"]), 2):
                 upd["valor_thais"] = float(_e["Thais R$"]) or None
             if str(_e["Pessoa"]).strip() != str(_o["Pessoa"]).strip():
                 upd["pessoa_thais"] = str(_e["Pessoa"]).strip() or None
